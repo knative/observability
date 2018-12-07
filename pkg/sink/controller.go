@@ -39,7 +39,7 @@ func NewController(cmp ConfigMapPatcher, dsp DaemonSetPodDeleter, sc *Config) *C
 	}
 }
 
-func (c *Controller) AddFunc(o interface{}) {
+func (c *Controller) OnAdd(o interface{}) {
 	d, ok := o.(*v1alpha1.LogSink)
 	if !ok {
 		return
@@ -57,7 +57,7 @@ func (c *Controller) AddFunc(o interface{}) {
 	patchConfig(patches, c.cmp, c.dsp)
 }
 
-func (c *Controller) DeleteFunc(o interface{}) {
+func (c *Controller) OnDelete(o interface{}) {
 	d, ok := o.(*v1alpha1.LogSink)
 	if !ok {
 		return
@@ -98,8 +98,8 @@ func patchConfig(patches []patch, cmp ConfigMapPatcher, dsp DaemonSetPodDeleter)
 
 }
 
-func (c *Controller) UpdateFunc(old, new interface{}) {
+func (c *Controller) OnUpdate(old, new interface{}) {
 	if !reflect.DeepEqual(old, new) {
-		c.AddFunc(new)
+		c.OnAdd(new)
 	}
 }

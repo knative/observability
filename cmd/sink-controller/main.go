@@ -16,21 +16,17 @@ limitations under the License.
 package main
 
 import (
-	"context"
 	"flag"
 	"log"
-	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	envstruct "code.cloudfoundry.org/go-envstruct"
 	"github.com/knative/observability/pkg/client/clientset/versioned"
 	informers "github.com/knative/observability/pkg/client/informers/externalversions"
 	"github.com/knative/observability/pkg/sink"
+	"github.com/knative/pkg/signals"
 	coreV1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/cache"
 )
 
 type config struct {
@@ -39,7 +35,7 @@ type config struct {
 
 func main() {
 	flag.Parse()
-	ctx := setupSignalHandler()
+	stopCh := signals.SetupSignalHandler()
 
 	var conf config
 	err := envstruct.Load(&conf)
@@ -83,41 +79,11 @@ func main() {
 	sinkInformerFactory := informers.NewSharedInformerFactory(client, time.Second*30)
 
 	sinkInformer := sinkInformerFactory.Observability().V1alpha1().LogSinks().Informer()
-	sinkInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    controller.AddFunc,
-		DeleteFunc: controller.DeleteFunc,
-		UpdateFunc: controller.UpdateFunc,
-	})
+	sinkInformer.AddEventHandler(controller)
 
 	clusterSinkInformer := sinkInformerFactory.Observability().V1alpha1().ClusterLogSinks().Informer()
-	clusterSinkInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    clusterController.AddFunc,
-		DeleteFunc: clusterController.DeleteFunc,
-		UpdateFunc: clusterController.UpdateFunc,
-	})
+	clusterSinkInformer.AddEventHandler(clusterController)
 
-	go sinkInformer.Run(ctx.Done())
-	clusterSinkInformer.Run(ctx.Done())
-}
-
-var onlyOneSignalHandler = make(chan struct{})
-
-// setupSignalHandler registers SIGTERM and SIGINT. A context is returned
-// which is canceled on one of these signals. If a second signal is caught,
-// the program is terminated with exit code 1.
-func setupSignalHandler() context.Context {
-	close(onlyOneSignalHandler) // only call once, panic on calls > 1
-
-	ctx, cancel := context.WithCancel(context.Background())
-
-	c := make(chan os.Signal, 2)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-c
-		cancel()
-		<-c
-		os.Exit(1) // second signal. Exit directly.
-	}()
-
-	return ctx
+	go sinkInformer.Run(stopCh)
+	clusterSinkInformer.Run(stopCh)
 }

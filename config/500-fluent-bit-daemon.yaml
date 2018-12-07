@@ -20,8 +20,6 @@ metadata:
   labels:
     app: fluent-bit-ds
     version: v1
-    kubernetes.io/cluster-service: "true"
-    addonmanager.kubernetes.io/mode: Reconcile
 spec:
   updateStrategy:
     type: RollingUpdate
@@ -34,21 +32,20 @@ spec:
       labels:
         app: fluent-bit-ds
         version: v1
-        kubernetes.io/cluster-service: "true"
-      # This annotation ensures that fluentbit does not get evicted if the node
-      # supports critical pod annotation based priority scheme.
-      # Note that this does not guarantee admission on the nodes (#40573).
-      annotations:
-        scheduler.alpha.kubernetes.io/critical-pod: ''
     spec:
       serviceAccountName: fluent-bit
       containers:
       - name: fluent-bit
-        image: oratos/fluent-bit-out-syslog
-        imagePullPolicy: Always
+        image: oratos/fluent-bit-out-syslog:v0.9
+        imagePullPolicy: IfNotPresent
         ports:
         - name: forward-plugin
           containerPort: 24224
+        readinessProbe:
+          tcpSocket:
+            port: 24224
+          initialDelaySeconds: 2
+          periodSeconds: 4
         resources:
           limits:
             memory: 100Mi

@@ -35,7 +35,7 @@ func NewClusterController(cmp ConfigMapPatcher, dsp DaemonSetPodDeleter, sc *Con
 	}
 }
 
-func (c *ClusterController) AddFunc(o interface{}) {
+func (c *ClusterController) OnAdd(o interface{}) {
 	d, ok := o.(*v1alpha1.ClusterLogSink)
 	if !ok {
 		return
@@ -53,7 +53,7 @@ func (c *ClusterController) AddFunc(o interface{}) {
 	patchConfig(patches, c.cmp, c.dsp)
 }
 
-func (c *ClusterController) DeleteFunc(o interface{}) {
+func (c *ClusterController) OnDelete(o interface{}) {
 	d, ok := o.(*v1alpha1.ClusterLogSink)
 	if !ok {
 		return
@@ -71,8 +71,8 @@ func (c *ClusterController) DeleteFunc(o interface{}) {
 	patchConfig(patches, c.cmp, c.dsp)
 }
 
-func (c *ClusterController) UpdateFunc(old, new interface{}) {
+func (c *ClusterController) OnUpdate(old, new interface{}) {
 	if !reflect.DeepEqual(old, new) {
-		c.AddFunc(new)
+		c.OnAdd(new)
 	}
 }

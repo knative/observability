@@ -21,7 +21,7 @@ package v1alpha1
 import (
 	time "time"
 
-	sinkv1alpha1 "github.com/knative/observability/pkg/apis/sink/v1alpha1"
+	sink_v1alpha1 "github.com/knative/observability/pkg/apis/sink/v1alpha1"
 	versioned "github.com/knative/observability/pkg/client/clientset/versioned"
 	internalinterfaces "github.com/knative/observability/pkg/client/informers/externalversions/internalinterfaces"
 	v1alpha1 "github.com/knative/observability/pkg/client/listers/sink/v1alpha1"
@@ -70,7 +70,7 @@ func NewFilteredLogSinkInformer(client versioned.Interface, namespace string, re
 				return client.ObservabilityV1alpha1().LogSinks(namespace).Watch(options)
 			},
 		},
-		&sinkv1alpha1.LogSink{},
+		&sink_v1alpha1.LogSink{},
 		resyncPeriod,
 		indexers,
 	)
@@ -81,7 +81,7 @@ func (f *logSinkInformer) defaultInformer(client versioned.Interface, resyncPeri
 }
 
 func (f *logSinkInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&sinkv1alpha1.LogSink{}, f.defaultInformer)
+	return f.factory.InformerFor(&sink_v1alpha1.LogSink{}, f.defaultInformer)
 }
 
 func (f *logSinkInformer) Lister() v1alpha1.LogSinkLister {

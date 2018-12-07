@@ -131,7 +131,7 @@ func (c *FakeClusterLogSinks) DeleteCollection(options *v1.DeleteOptions, listOp
 // Patch applies the patch and returns the patched clusterLogSink.
 func (c *FakeClusterLogSinks) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1alpha1.ClusterLogSink, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(clusterlogsinksResource, c.ns, name, pt, data, subresources...), &v1alpha1.ClusterLogSink{})
+		Invokes(testing.NewPatchSubresourceAction(clusterlogsinksResource, c.ns, name, data, subresources...), &v1alpha1.ClusterLogSink{})
 
 	if obj == nil {
 		return nil, err

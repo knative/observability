@@ -12,25 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-kind: ClusterRole
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: event-controller
-rules:
-# The event-controller needs to be able to watch events
-- apiGroups: [""]
-  resources: ["events"]
-  verbs: ["get", "list", "watch"]
 ---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: event-controller
+  name: sink-controller
 subjects:
 - kind: ServiceAccount
-  name: event-controller
+  name: sink-controller
   namespace: knative-observability
 roleRef:
   kind: ClusterRole
-  name: event-controller
+  name: sink-controller
   apiGroup: rbac.authorization.k8s.io

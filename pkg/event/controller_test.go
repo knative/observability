@@ -58,24 +58,24 @@ var _ = Describe("Event", func() {
 			},
 		}
 
-		c.AddFunc(ev)
+		c.OnAdd(ev)
 
 		Expect(spyFl.receivedMsg).To(Equal(expected))
 		Expect(spyFl.tag).To(Equal("k8s.event"))
 		Expect(event.ForwarderSent.Value()).To(BeEquivalentTo(1))
 	})
 
-	It("does nothing when UpdateFunc is called", func() {
+	It("does nothing when OnUpdate is called", func() {
 		spyFl := &spyFlogger{}
 		c := event.NewController(spyFl)
-		c.UpdateFunc(nil, nil)
+		c.OnUpdate(nil, nil)
 		Expect(spyFl.called).To(BeFalse())
 	})
 
-	It("does nothing when DeleteFunc is called", func() {
+	It("does nothing when OnDelete is called", func() {
 		spyFl := &spyFlogger{}
 		c := event.NewController(spyFl)
-		c.DeleteFunc(nil)
+		c.OnDelete(nil)
 		Expect(spyFl.called).To(BeFalse())
 	})
 
@@ -83,7 +83,7 @@ var _ = Describe("Event", func() {
 		spyFl := &spyFlogger{}
 		c := event.NewController(spyFl)
 
-		c.AddFunc("non-v1-event")
+		c.OnAdd("non-v1-event")
 		Expect(spyFl.called).To(BeFalse())
 		Expect(event.ForwarderSent.Value()).To(BeEquivalentTo(0))
 		Expect(event.ForwarderConvertFailed.Value()).To(BeEquivalentTo(1))
@@ -105,7 +105,7 @@ var _ = Describe("Event", func() {
 			},
 		}
 
-		c.AddFunc(ev)
+		c.OnAdd(ev)
 
 		Expect(event.ForwarderSent.Value()).To(BeEquivalentTo(0))
 		Expect(event.ForwarderFailed.Value()).To(BeEquivalentTo(1))
@@ -132,7 +132,7 @@ var _ = Describe("Event", func() {
 			},
 		}
 
-		c.AddFunc(ev)
+		c.OnAdd(ev)
 
 		Expect(spyFl.receivedMsg).To(Equal(expected))
 		Expect(spyFl.tag).To(Equal("k8s.event"))

@@ -15,25 +15,9 @@
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: fluent-bit
+  name: event-controller
 rules:
-# This rule is for kubernetes-metadata-filter
-- apiGroups:
-  - ""
-  - "apps"
-  - "batch"
-  resources: ["*"]
+# The event-controller needs to be able to watch events
+- apiGroups: [""]
+  resources: ["events"]
   verbs: ["get", "list", "watch"]
----
-kind: ClusterRoleBinding
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: fluent-bit
-subjects:
-- kind: ServiceAccount
-  name: fluent-bit
-  namespace: knative-observability
-roleRef:
-  kind: ClusterRole
-  name: fluent-bit
-  apiGroup: rbac.authorization.k8s.io

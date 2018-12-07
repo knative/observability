@@ -16,24 +16,20 @@ limitations under the License.
 package main
 
 import (
-	"context"
 	_ "expvar"
 	"log"
 	"net"
 	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	envstruct "code.cloudfoundry.org/go-envstruct"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/cache"
 
 	"github.com/fluent/fluent-logger-golang/fluent"
 	"github.com/knative/observability/pkg/event"
+	"github.com/knative/pkg/signals"
 )
 
 type config struct {
@@ -42,7 +38,7 @@ type config struct {
 }
 
 func main() {
-	ctx := setupSignalHandler()
+	stopCh := signals.SetupSignalHandler()
 
 	conf := config{
 		MetricsPort: "6060",
@@ -80,33 +76,7 @@ func main() {
 	informerFactory := informers.NewSharedInformerFactory(kclientset, 30*time.Second)
 
 	eventInformer := informerFactory.Core().V1().Events().Informer()
-	eventInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    controller.AddFunc,
-		DeleteFunc: controller.DeleteFunc,
-		UpdateFunc: controller.UpdateFunc,
-	})
+	eventInformer.AddEventHandler(controller)
 
-	eventInformer.Run(ctx.Done())
-}
-
-var onlyOneSignalHandler = make(chan struct{})
-
-// setupSignalHandler registers SIGTERM and SIGINT. A context is returned
-// which is canceled on one of these signals. If a second signal is caught,
-// the program is terminated with exit code 1.
-func setupSignalHandler() context.Context {
-	close(onlyOneSignalHandler) // only call once, panic on calls > 1
-
-	ctx, cancel := context.WithCancel(context.Background())
-
-	c := make(chan os.Signal, 2)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-c
-		cancel()
-		<-c
-		os.Exit(1) // second signal. Exit directly.
-	}()
-
-	return ctx
+	eventInformer.Run(stopCh)
 }

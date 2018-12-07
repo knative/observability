@@ -48,7 +48,7 @@ func NewController(l Forwarder) *Controller {
 	}
 }
 
-func (c *Controller) AddFunc(o interface{}) {
+func (c *Controller) OnAdd(o interface{}) {
 	e, ok := o.(*v1.Event)
 	if !ok {
 		ForwarderConvertFailed.Add(1)
@@ -77,10 +77,10 @@ func (c *Controller) AddFunc(o interface{}) {
 	ForwarderSent.Add(1)
 }
 
-func (c *Controller) DeleteFunc(o interface{}) {
+func (c *Controller) OnDelete(o interface{}) {
 	// Do nothing!
 }
 
-func (c *Controller) UpdateFunc(o interface{}, n interface{}) {
+func (c *Controller) OnUpdate(o interface{}, n interface{}) {
 	// Do nothing!
 }

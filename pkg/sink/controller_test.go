@@ -49,11 +49,11 @@ var _ = Describe("Controller", func() {
 				}
 				switch operations[i] {
 				case "add":
-					c.AddFunc(d)
+					c.OnAdd(d)
 				case "delete":
-					c.DeleteFunc(d)
+					c.OnDelete(d)
 				case "update":
-					c.UpdateFunc(nil, d)
+					c.OnUpdate(nil, d)
 				}
 			}
 			spyConfigMapPatcher.expectPatches(patches)
@@ -144,7 +144,7 @@ var _ = Describe("Controller", func() {
 				Port: 12345,
 			},
 		}
-		c.UpdateFunc(s1, s2)
+		c.OnUpdate(s1, s2)
 
 		Expect(spyPatcher.patchCalled).To(BeFalse())
 		Expect(spyDeleter.deleteCollectionCalled).To(BeFalse())
@@ -158,9 +158,9 @@ var _ = Describe("Controller", func() {
 		)
 
 		Expect(func() {
-			c.AddFunc("")
-			c.DeleteFunc(1)
-			c.UpdateFunc(nil, nil)
+			c.OnAdd("")
+			c.OnDelete(1)
+			c.OnUpdate(nil, nil)
 		}).ToNot(Panic())
 	})
 
@@ -179,7 +179,7 @@ var _ = Describe("Controller", func() {
 			},
 		}
 
-		c.AddFunc(s1)
+		c.OnAdd(s1)
 
 		spyPatcher.expectPatches([]string{
 			"\n[OUTPUT]\n    Name syslog\n    Match *\n    Sinks [{\"addr\":\"example.com:12345\",\"namespace\":\"default\"}]\n    ClusterSinks []\n",
