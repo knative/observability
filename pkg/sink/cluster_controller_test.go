@@ -16,38 +16,21 @@ limitations under the License.
 package sink_test
 
 import (
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/ginkgo/extensions/table"
-	. "github.com/onsi/gomega"
+	"testing"
 
 	"github.com/knative/observability/pkg/apis/sink/v1alpha1"
 	"github.com/knative/observability/pkg/sink"
 )
 
-var _ = Describe("ClusterController", func() {
-	DescribeTable("Sink Add, Update, and Delete",
-		func(operations []string, specs []v1alpha1.SinkSpec, patches []string) {
-			spyConfigMapPatcher := &spyConfigMapPatcher{}
-			spyDaemonSetPodDeleter := &spyDaemonSetPodDeleter{}
-
-			c := sink.NewClusterController(spyConfigMapPatcher, spyDaemonSetPodDeleter, sink.NewConfig())
-			for i, spec := range specs {
-				d := &v1alpha1.ClusterLogSink{
-					Spec: spec,
-				}
-				switch operations[i] {
-				case "add":
-					c.OnAdd(d)
-				case "delete":
-					c.OnDelete(d)
-				case "update":
-					c.OnUpdate(nil, d)
-				}
-			}
-			spyConfigMapPatcher.expectPatches(patches)
-			Expect(spyDaemonSetPodDeleter.Selector).To(Equal("app=fluent-bit-ds"))
-		},
-		Entry("Add a single sink",
+func TestClusterSinkModification(t *testing.T) {
+	var tests = []struct {
+		name       string
+		operations []string
+		specs      []v1alpha1.SinkSpec
+		patches    []string
+	}{
+		{
+			"Add a single sink",
 			[]string{"add"},
 			[]v1alpha1.SinkSpec{
 				{Type: "syslog", Host: "example.com", Port: 12345},
@@ -55,8 +38,9 @@ var _ = Describe("ClusterController", func() {
 			[]string{
 				"\n[OUTPUT]\n    Name syslog\n    Match *\n    Sinks []\n    ClusterSinks [{\"addr\":\"example.com:12345\"}]\n",
 			},
-		),
-		Entry("Add a single TLS sink with no skip verify",
+		},
+		{
+			"Add a single TLS sink with no skip verify",
 			[]string{"add"},
 			[]v1alpha1.SinkSpec{
 				{Type: "syslog", Host: "example.com", Port: 12345, EnableTLS: true},
@@ -64,8 +48,9 @@ var _ = Describe("ClusterController", func() {
 			[]string{
 				"\n[OUTPUT]\n    Name syslog\n    Match *\n    Sinks []\n    ClusterSinks [{\"addr\":\"example.com:12345\",\"tls\":{}}]\n",
 			},
-		),
-		Entry("Add a single TLS sink with insecure skip verify set",
+		},
+		{
+			"Add a single TLS sink with insecure skip verify set",
 			[]string{"add"},
 			[]v1alpha1.SinkSpec{
 				{Type: "syslog", Host: "example.com", Port: 12345, EnableTLS: true, InsecureSkipVerify: true},
@@ -73,8 +58,9 @@ var _ = Describe("ClusterController", func() {
 			[]string{
 				"\n[OUTPUT]\n    Name syslog\n    Match *\n    Sinks []\n    ClusterSinks [{\"addr\":\"example.com:12345\",\"tls\":{\"insecure_skip_verify\":true}}]\n",
 			},
-		),
-		Entry("Add multiple sinks",
+		},
+		{
+			"Add multiple sinks",
 			[]string{"add", "add"},
 			[]v1alpha1.SinkSpec{
 				{Type: "syslog", Host: "example.com", Port: 12345},
@@ -84,19 +70,9 @@ var _ = Describe("ClusterController", func() {
 				"\n[OUTPUT]\n    Name syslog\n    Match *\n    Sinks []\n    ClusterSinks [{\"addr\":\"example.com:12345\"}]\n",
 				"\n[OUTPUT]\n    Name syslog\n    Match *\n    Sinks []\n    ClusterSinks [{\"addr\":\"test.com:4567\"}]\n",
 			},
-		),
-		Entry("Delete sink",
-			[]string{"add", "delete"},
-			[]v1alpha1.SinkSpec{
-				{Type: "syslog", Host: "example.com", Port: 12345},
-				{Type: "syslog", Host: "example.com", Port: 12345},
-			},
-			[]string{
-				"\n[OUTPUT]\n    Name syslog\n    Match *\n    Sinks []\n    ClusterSinks [{\"addr\":\"example.com:12345\"}]\n",
-				"\n[OUTPUT]\n    Name null\n    Match *\n",
-			},
-		),
-		Entry("Update sink",
+		},
+		{
+			"Update sink",
 			[]string{"add", "update"},
 			[]v1alpha1.SinkSpec{
 				{Type: "syslog", Host: "example.com", Port: 12345},
@@ -106,45 +82,84 @@ var _ = Describe("ClusterController", func() {
 				"\n[OUTPUT]\n    Name syslog\n    Match *\n    Sinks []\n    ClusterSinks [{\"addr\":\"example.com:12345\"}]\n",
 				"\n[OUTPUT]\n    Name syslog\n    Match *\n    Sinks []\n    ClusterSinks [{\"addr\":\"example.com:12346\"}]\n",
 			},
-		),
+		},
+		{
+			"Delete sink",
+			[]string{"add", "delete"},
+			[]v1alpha1.SinkSpec{
+				{Type: "syslog", Host: "example.com", Port: 12345},
+				{Type: "syslog", Host: "example.com", Port: 12345},
+			},
+			[]string{
+				"\n[OUTPUT]\n    Name syslog\n    Match *\n    Sinks []\n    ClusterSinks [{\"addr\":\"example.com:12345\"}]\n",
+				"\n[OUTPUT]\n    Name null\n    Match *\n",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			spyConfigMapPatcher := &spyConfigMapPatcher{}
+			spyDaemonSetPodDeleter := &spyDaemonSetPodDeleter{}
+
+			c := sink.NewClusterController(spyConfigMapPatcher, spyDaemonSetPodDeleter, sink.NewConfig())
+			for i, spec := range test.specs {
+				d := &v1alpha1.ClusterLogSink{
+					Spec: spec,
+				}
+				switch test.operations[i] {
+				case "add":
+					c.OnAdd(d)
+				case "delete":
+					c.OnDelete(d)
+				case "update":
+					c.OnUpdate(nil, d)
+				}
+			}
+			spyConfigMapPatcher.expectPatches(test.patches, t)
+			if spyDaemonSetPodDeleter.Selector != "app=fluent-bit-ds" {
+				t.Errorf("DaemonSet PodDeleter not equal: Expected: %s, Actual: %s", spyDaemonSetPodDeleter.Selector, "app=fluent-bit-ds")
+			}
+		})
+	}
+}
+
+func TestNoopChange(t *testing.T) {
+	spyPatcher := &spyConfigMapPatcher{}
+	spyDeleter := &spyDaemonSetPodDeleter{}
+	c := sink.NewClusterController(spyPatcher, spyDeleter, sink.NewConfig())
+
+	s1 := &v1alpha1.ClusterLogSink{
+		Spec: v1alpha1.SinkSpec{
+			Type: "syslog",
+			Host: "example.com",
+			Port: 12345,
+		},
+	}
+	s2 := &v1alpha1.ClusterLogSink{
+		Spec: v1alpha1.SinkSpec{
+			Type: "syslog",
+			Host: "example.com",
+			Port: 12345,
+		},
+	}
+	c.OnUpdate(s1, s2)
+	if spyPatcher.patchCalled {
+		t.Errorf("Expected patch to not be called")
+	}
+	if spyDeleter.deleteCollectionCalled {
+		t.Errorf("Expected delete to not be called")
+	}
+}
+
+func TestBadInputs(t *testing.T) {
+	c := sink.NewClusterController(
+		&spyConfigMapPatcher{},
+		&spyDaemonSetPodDeleter{},
+		sink.NewConfig(),
 	)
-
-	It("doesn't update when there are no changes to the sink", func() {
-		spyPatcher := &spyConfigMapPatcher{}
-		spyDeleter := &spyDaemonSetPodDeleter{}
-		c := sink.NewClusterController(spyPatcher, spyDeleter, sink.NewConfig())
-
-		s1 := &v1alpha1.ClusterLogSink{
-			Spec: v1alpha1.SinkSpec{
-				Type: "syslog",
-				Host: "example.com",
-				Port: 12345,
-			},
-		}
-		s2 := &v1alpha1.ClusterLogSink{
-			Spec: v1alpha1.SinkSpec{
-				Type: "syslog",
-				Host: "example.com",
-				Port: 12345,
-			},
-		}
-		c.OnUpdate(s1, s2)
-
-		Expect(spyPatcher.patchCalled).To(BeFalse())
-		Expect(spyDeleter.deleteCollectionCalled).To(BeFalse())
-	})
-
-	It("doesn't panic when given something that isn't a sink", func() {
-		c := sink.NewClusterController(
-			&spyConfigMapPatcher{},
-			&spyDaemonSetPodDeleter{},
-			sink.NewConfig(),
-		)
-
-		Expect(func() {
-			c.OnAdd("")
-			c.OnDelete(1)
-			c.OnUpdate(nil, nil)
-		}).ToNot(Panic())
-	})
-})
+	//shouldn't panic
+	c.OnAdd("")
+	c.OnDelete(1)
+	c.OnUpdate(nil, nil)
+}

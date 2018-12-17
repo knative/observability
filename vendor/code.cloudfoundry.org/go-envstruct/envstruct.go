@@ -1,10 +1,12 @@
 package envstruct
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -14,7 +16,7 @@ const (
 	indexEnvVar = 0
 
 	tagRequired = "required"
-	tagNoReport = "noreport"
+	tagReport   = "report"
 )
 
 // Unmarshaller is a type which unmarshals itself from an environment variable.
@@ -25,6 +27,22 @@ type Unmarshaller interface {
 // Load will use the `env` tags from a struct to populate the structs values and
 // perform validations.
 func Load(t interface{}) error {
+	missing, err := load(t)
+	if err != nil {
+		return err
+	}
+
+	if len(missing) > 0 {
+		return fmt.Errorf(
+			"missing required environment variables: %s",
+			strings.Join(uniqueStrings(missing), ", "),
+		)
+	}
+
+	return nil
+}
+
+func load(t interface{}) (missing []string, err error) {
 	val := reflect.ValueOf(t).Elem()
 
 	for i := 0; i < val.NumField(); i++ {
@@ -38,16 +56,20 @@ func Load(t interface{}) error {
 		required := tagPropertiesContains(tagProperties, tagRequired)
 
 		if isInvalid(envVal, required) {
-			return fmt.Errorf("%s is required but was empty", envVar)
+			missing = append(missing, envVar)
+			continue
 		}
 
-		err := setField(valueField, envVal)
+		hasEnvTag := envVar != ""
+		subMissing, err := setField(valueField, envVal, hasEnvTag)
 		if err != nil {
-			return err
+			return nil, err
 		}
+
+		missing = append(missing, subMissing...)
 	}
 
-	return nil
+	return missing, nil
 }
 
 // ToEnv will return a slice of strings that can be used with exec.Cmd.Env
@@ -106,44 +128,57 @@ func unmarshaller(v reflect.Value) (Unmarshaller, bool) {
 	return nil, false
 }
 
-func setField(value reflect.Value, input string) error {
+func setField(value reflect.Value, input string, hasEnvTag bool) (missing []string, err error) {
+	if !value.CanSet() {
+		return nil, nil
+	}
+
 	if input == "" &&
 		(value.Kind() != reflect.Ptr) &&
 		(value.Kind() != reflect.Struct) {
 
-		return nil
+		return nil, nil
 	}
 
 	if unmarshaller, ok := unmarshaller(value); ok {
-		return unmarshaller.UnmarshalEnv(input)
+		return nil, unmarshaller.UnmarshalEnv(input)
+	} else {
+		if value.Kind() == reflect.Struct && hasEnvTag {
+			return nil, errors.New(fmt.Sprintf("Nested struct %s with env tag needs to have an UnmarshallEnv method\n", value.Type().Name()))
+		}
 	}
+
 	switch value.Type() {
 	case reflect.TypeOf(time.Second):
-		return setDuration(value, input)
+		return nil, setDuration(value, input)
 	case reflect.TypeOf(&url.URL{}):
-		return setURL(value, input)
+		return nil, setURL(value, input)
 	}
 
 	switch value.Kind() {
 	case reflect.String:
-		return setString(value, input)
+		return nil, setString(value, input)
 	case reflect.Bool:
-		return setBool(value, input)
+		return nil, setBool(value, input)
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return setInt(value, input)
+		return nil, setInt(value, input)
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return setUint(value, input)
+		return nil, setUint(value, input)
+	case reflect.Float32, reflect.Float64:
+		return nil, setFloat(value, input)
+	case reflect.Complex64, reflect.Complex128:
+		return nil, setComplex(value, input)
 	case reflect.Slice:
-		return setSlice(value, input)
+		return nil, setSlice(value, input, hasEnvTag)
 	case reflect.Map:
-		return setMap(value, input)
+		return nil, setMap(value, input)
 	case reflect.Struct:
 		return setStruct(value)
 	case reflect.Ptr:
-		return setPointerToStruct(value)
+		return setPointerToStruct(value, input, hasEnvTag)
 	}
 
-	return nil
+	return nil, nil
 }
 
 func separateOnComma(input string) []string {
@@ -160,27 +195,21 @@ func isInvalid(input string, required bool) bool {
 	return required && input == ""
 }
 
-func setStruct(value reflect.Value) error {
-	err := Load(value.Addr().Interface())
-	if err != nil {
-		return err
-	}
-
-	return nil
+func setStruct(value reflect.Value) (missing []string, err error) {
+	return load(value.Addr().Interface())
 }
 
-func setPointerToStruct(value reflect.Value) error {
+func setPointerToStruct(value reflect.Value, input string, hasEnvTag bool) (missing []string, err error) {
 	if value.IsNil() {
 		p := reflect.New(value.Type().Elem())
 		value.Set(p)
 	}
 
-	err := Load(value.Interface())
-	if err != nil {
-		return err
+	if value.Type().Elem().Kind() == reflect.Struct {
+		return load(value.Interface())
 	}
 
-	return nil
+	return setField(value.Elem(), input, hasEnvTag)
 }
 
 func setDuration(value reflect.Value, input string) error {
@@ -239,12 +268,40 @@ func setUint(value reflect.Value, input string) error {
 	return nil
 }
 
-func setSlice(value reflect.Value, input string) error {
+func setFloat(value reflect.Value, input string) error {
+	n, err := strconv.ParseFloat(input, 64)
+	if err != nil {
+		return err
+	}
+
+	value.SetFloat(float64(n))
+
+	return nil
+}
+
+func setComplex(value reflect.Value, input string) error {
+	var n complex128
+
+	count, err := fmt.Sscanf(input, "%g", &n)
+	if err != nil {
+		return err
+	}
+
+	if count != 1 {
+		return fmt.Errorf("Expected to parse 1 complex number, found %d", count)
+	}
+
+	value.SetComplex(n)
+
+	return nil
+}
+
+func setSlice(value reflect.Value, input string, hasEnvTag bool) error {
 	inputs := separateOnComma(input)
 
 	rs := reflect.MakeSlice(value.Type(), len(inputs), len(inputs))
 	for i, val := range inputs {
-		err := setField(rs.Index(i), val)
+		_, err := setField(rs.Index(i), val, hasEnvTag)
 		if err != nil {
 			return err
 		}
@@ -298,4 +355,20 @@ func formatMap(envVar string, value reflect.Value) string {
 	}
 
 	return fmt.Sprintf("%s=%+v", envVar, strings.Join(parts, ","))
+}
+
+func uniqueStrings(s []string) []string {
+	m := make(map[string]bool)
+	for _, str := range s {
+		m[str] = true
+	}
+
+	res := make([]string, 0, len(m))
+	for k := range m {
+		res = append(res, k)
+	}
+
+	sort.Strings(res)
+
+	return res
 }
