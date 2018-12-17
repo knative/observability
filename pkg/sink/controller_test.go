@@ -17,49 +17,28 @@ package sink_test
 
 import (
 	"encoding/json"
+	"testing"
+
+	"github.com/google/go-cmp/cmp"
 
 	coreV1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/ginkgo/extensions/table"
-	. "github.com/onsi/gomega"
-
 	"github.com/knative/observability/pkg/apis/sink/v1alpha1"
 	"github.com/knative/observability/pkg/sink"
 )
 
-var _ = Describe("Controller", func() {
-	DescribeTable("Sink Add, Update, and Delete",
-		func(operations []string, specs []v1alpha1.SinkSpec, patches []string) {
-			spyConfigMapPatcher := &spyConfigMapPatcher{}
-			spyDaemonSetPodDeleter := &spyDaemonSetPodDeleter{}
-			c := sink.NewController(
-				spyConfigMapPatcher,
-				spyDaemonSetPodDeleter,
-				sink.NewConfig(),
-			)
-			for i, spec := range specs {
-				d := &v1alpha1.LogSink{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "test-ns",
-					},
-					Spec: spec,
-				}
-				switch operations[i] {
-				case "add":
-					c.OnAdd(d)
-				case "delete":
-					c.OnDelete(d)
-				case "update":
-					c.OnUpdate(nil, d)
-				}
-			}
-			spyConfigMapPatcher.expectPatches(patches)
-			Expect(spyDaemonSetPodDeleter.Selector).To(Equal("app=fluent-bit-ds"))
-		},
-		Entry("Add a single sink",
+func TestSinkModification(t *testing.T) {
+	var tests = []struct {
+		name       string
+		operations []string
+		specs      []v1alpha1.SinkSpec
+		patches    []string
+	}{
+
+		{
+			"Add a single sink",
 			[]string{"add"},
 			[]v1alpha1.SinkSpec{
 				{Type: "syslog", Host: "example.com", Port: 12345},
@@ -67,8 +46,9 @@ var _ = Describe("Controller", func() {
 			[]string{
 				"\n[OUTPUT]\n    Name syslog\n    Match *\n    Sinks [{\"addr\":\"example.com:12345\",\"namespace\":\"test-ns\"}]\n    ClusterSinks []\n",
 			},
-		),
-		Entry("Add a single TLS sink with no skip verify",
+		},
+		{
+			"Add a single TLS sink with no skip verify",
 			[]string{"add"},
 			[]v1alpha1.SinkSpec{
 				{Type: "syslog", Host: "example.com", Port: 12345, EnableTLS: true},
@@ -76,8 +56,9 @@ var _ = Describe("Controller", func() {
 			[]string{
 				"\n[OUTPUT]\n    Name syslog\n    Match *\n    Sinks [{\"addr\":\"example.com:12345\",\"namespace\":\"test-ns\",\"tls\":{}}]\n    ClusterSinks []\n",
 			},
-		),
-		Entry("Add a single TLS sink with skip verify set",
+		},
+		{
+			"Add a single TLS sink with skip verify set",
 			[]string{"add"},
 			[]v1alpha1.SinkSpec{
 				{Type: "syslog", Host: "example.com", Port: 12345, EnableTLS: true, InsecureSkipVerify: true},
@@ -85,8 +66,9 @@ var _ = Describe("Controller", func() {
 			[]string{
 				"\n[OUTPUT]\n    Name syslog\n    Match *\n    Sinks [{\"addr\":\"example.com:12345\",\"namespace\":\"test-ns\",\"tls\":{\"insecure_skip_verify\":true}}]\n    ClusterSinks []\n",
 			},
-		),
-		Entry("Add multiple sinks",
+		},
+		{
+			"Add multiple sinks",
 			[]string{"add", "add"},
 			[]v1alpha1.SinkSpec{
 				{Type: "syslog", Host: "example.com", Port: 12345},
@@ -96,8 +78,9 @@ var _ = Describe("Controller", func() {
 				"\n[OUTPUT]\n    Name syslog\n    Match *\n    Sinks [{\"addr\":\"example.com:12345\",\"namespace\":\"test-ns\"}]\n    ClusterSinks []\n",
 				"\n[OUTPUT]\n    Name syslog\n    Match *\n    Sinks [{\"addr\":\"test.com:4567\",\"namespace\":\"test-ns\"}]\n    ClusterSinks []\n",
 			},
-		),
-		Entry("Delete sink",
+		},
+		{
+			"Delete sink",
 			[]string{"add", "delete"},
 			[]v1alpha1.SinkSpec{
 				{Type: "syslog", Host: "example.com", Port: 12345},
@@ -107,8 +90,9 @@ var _ = Describe("Controller", func() {
 				"\n[OUTPUT]\n    Name syslog\n    Match *\n    Sinks [{\"addr\":\"example.com:12345\",\"namespace\":\"test-ns\"}]\n    ClusterSinks []\n",
 				"\n[OUTPUT]\n    Name null\n    Match *\n",
 			},
-		),
-		Entry("Update sink",
+		},
+		{
+			"Update sink",
 			[]string{"add", "update"},
 			[]v1alpha1.SinkSpec{
 				{Type: "syslog", Host: "example.com", Port: 12345},
@@ -118,74 +102,108 @@ var _ = Describe("Controller", func() {
 				"\n[OUTPUT]\n    Name syslog\n    Match *\n    Sinks [{\"addr\":\"example.com:12345\",\"namespace\":\"test-ns\"}]\n    ClusterSinks []\n",
 				"\n[OUTPUT]\n    Name syslog\n    Match *\n    Sinks [{\"addr\":\"example.com:12346\",\"namespace\":\"test-ns\"}]\n    ClusterSinks []\n",
 			},
-		),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			spyConfigMapPatcher := &spyConfigMapPatcher{}
+			spyDaemonSetPodDeleter := &spyDaemonSetPodDeleter{}
+			c := sink.NewController(
+				spyConfigMapPatcher,
+				spyDaemonSetPodDeleter,
+				sink.NewConfig(),
+			)
+			for i, spec := range test.specs {
+				d := &v1alpha1.LogSink{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "test-ns",
+					},
+					Spec: spec,
+				}
+				switch test.operations[i] {
+				case "add":
+					c.OnAdd(d)
+				case "delete":
+					c.OnDelete(d)
+				case "update":
+					c.OnUpdate(nil, d)
+				}
+			}
+			spyConfigMapPatcher.expectPatches(test.patches, t)
+			if spyDaemonSetPodDeleter.Selector != "app=fluent-bit-ds" {
+				t.Errorf("DaemonSet PodDeleter not equal: Expected: %s, Actual: %s", spyDaemonSetPodDeleter.Selector, "app=fluent-bit-ds")
+			}
+		})
+	}
+}
+
+func TestNoChanges(t *testing.T) {
+	spyPatcher := &spyConfigMapPatcher{}
+	spyDeleter := &spyDaemonSetPodDeleter{}
+	c := sink.NewController(
+		spyPatcher,
+		spyDeleter,
+		sink.NewConfig(),
 	)
 
-	It("doesn't update when there are no changes to the sink", func() {
-		spyPatcher := &spyConfigMapPatcher{}
-		spyDeleter := &spyDaemonSetPodDeleter{}
-		c := sink.NewController(
-			spyPatcher,
-			spyDeleter,
-			sink.NewConfig(),
-		)
+	s1 := &v1alpha1.LogSink{
+		Spec: v1alpha1.SinkSpec{
+			Type: "syslog",
+			Host: "example.com",
+			Port: 12345,
+		},
+	}
+	s2 := &v1alpha1.LogSink{
+		Spec: v1alpha1.SinkSpec{
+			Type: "syslog",
+			Host: "example.com",
+			Port: 12345,
+		},
+	}
+	c.OnUpdate(s1, s2)
 
-		s1 := &v1alpha1.LogSink{
-			Spec: v1alpha1.SinkSpec{
-				Type: "syslog",
-				Host: "example.com",
-				Port: 12345,
-			},
-		}
-		s2 := &v1alpha1.LogSink{
-			Spec: v1alpha1.SinkSpec{
-				Type: "syslog",
-				Host: "example.com",
-				Port: 12345,
-			},
-		}
-		c.OnUpdate(s1, s2)
+	if spyPatcher.patchCalled {
+		t.Errorf("Expected patch to not be called")
+	}
+	if spyDeleter.deleteCollectionCalled {
+		t.Errorf("Expected delete to not be called")
+	}
+}
 
-		Expect(spyPatcher.patchCalled).To(BeFalse())
-		Expect(spyDeleter.deleteCollectionCalled).To(BeFalse())
-	})
+func TestNotASink(t *testing.T) {
+	c := sink.NewController(
+		&spyConfigMapPatcher{},
+		&spyDaemonSetPodDeleter{},
+		sink.NewConfig(),
+	)
 
-	It("doesn't panic when given something that isn't a sink", func() {
-		c := sink.NewController(
-			&spyConfigMapPatcher{},
-			&spyDaemonSetPodDeleter{},
-			sink.NewConfig(),
-		)
+	//Shouldn't Panic
+	c.OnAdd("")
+	c.OnDelete(1)
+	c.OnUpdate(nil, nil)
+}
 
-		Expect(func() {
-			c.OnAdd("")
-			c.OnDelete(1)
-			c.OnUpdate(nil, nil)
-		}).ToNot(Panic())
-	})
+func TestNoNamespace(t *testing.T) {
+	spyPatcher := &spyConfigMapPatcher{}
+	c := sink.NewController(
+		spyPatcher,
+		&spyDaemonSetPodDeleter{},
+		sink.NewConfig(),
+	)
+	s1 := &v1alpha1.LogSink{
+		Spec: v1alpha1.SinkSpec{
+			Type: "syslog",
+			Host: "example.com",
+			Port: 12345,
+		},
+	}
 
-	It("it converts unspecified namespace to default", func() {
-		spyPatcher := &spyConfigMapPatcher{}
-		c := sink.NewController(
-			spyPatcher,
-			&spyDaemonSetPodDeleter{},
-			sink.NewConfig(),
-		)
-		s1 := &v1alpha1.LogSink{
-			Spec: v1alpha1.SinkSpec{
-				Type: "syslog",
-				Host: "example.com",
-				Port: 12345,
-			},
-		}
+	c.OnAdd(s1)
 
-		c.OnAdd(s1)
-
-		spyPatcher.expectPatches([]string{
-			"\n[OUTPUT]\n    Name syslog\n    Match *\n    Sinks [{\"addr\":\"example.com:12345\",\"namespace\":\"default\"}]\n    ClusterSinks []\n",
-		})
-	})
-})
+	spyPatcher.expectPatches([]string{
+		"\n[OUTPUT]\n    Name syslog\n    Match *\n    Sinks [{\"addr\":\"example.com:12345\",\"namespace\":\"default\"}]\n    ClusterSinks []\n",
+	}, t)
+}
 
 type jsonPatch struct {
 	Op    string `json:"op"`
@@ -219,19 +237,32 @@ func (s *spyConfigMapPatcher) Patch(
 	return nil, nil
 }
 
-func (s *spyConfigMapPatcher) expectPatches(patches []string) {
+func (s *spyConfigMapPatcher) expectPatches(patches []string, t *testing.T) {
 	for i, p := range patches {
-		jp := jsonPatch{
-			Op:    "replace",
-			Path:  "/data/outputs.conf",
-			Value: p,
+		if s.patches[i].name != sink.ConfigMapName {
+			t.Errorf("Sink map name does not equal Got: %s, Expected %s", s.patches[i].name, sink.ConfigMapName)
 		}
-		b, err := json.Marshal([]jsonPatch{jp})
-		Expect(err).ToNot(HaveOccurred())
 
-		Expect(s.patches[i].name).To(Equal(sink.ConfigMapName))
-		Expect(s.patches[i].pt).To(Equal(types.JSONPatchType))
-		Expect(s.patches[i].data).To(MatchJSON(b))
+		if s.patches[i].pt != types.JSONPatchType {
+			t.Errorf("Patch Type does not equal Got: %s, Expected %s", s.patches[i].pt, types.JSONPatchType)
+		}
+
+		jpExpected := []jsonPatch{
+			{
+				Op:    "replace",
+				Path:  "/data/outputs.conf",
+				Value: p,
+			},
+		}
+		var jpActual []jsonPatch
+		err := json.Unmarshal(s.patches[i].data, &jpActual)
+		if err != nil {
+			t.Errorf("Could not Unmarshal json patch: %s", err)
+		}
+
+		if diff := cmp.Diff(jpExpected, jpActual); diff != "" {
+			t.Errorf("Patches not equal (-want, +got) = %v", diff)
+		}
 	}
 }
 

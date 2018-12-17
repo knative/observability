@@ -17,133 +17,171 @@ package event_test
 
 import (
 	"errors"
+	"testing"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	"github.com/google/go-cmp/cmp"
 
 	"k8s.io/api/core/v1"
 
 	"github.com/knative/observability/pkg/event"
 )
 
-var _ = Describe("Event", func() {
+func TestForwarding(t *testing.T) {
+	ResetForwarderMetrics()
+	spyFl := &spyFlogger{
+		t: t,
+	}
+	c := event.NewController(spyFl)
+	ev := &v1.Event{
+		InvolvedObject: v1.ObjectReference{
+			Name:      "some object name",
+			Namespace: "some namespace",
+		},
+		Message: "some note with log data",
+		Source: v1.EventSource{
+			Host: "some host",
+		},
+	}
 
-	BeforeEach(func() {
-		event.ForwarderSent.Set(0)
-		event.ForwarderFailed.Set(0)
-		event.ForwarderConvertFailed.Set(0)
-	})
+	expected := map[string]interface{}{
+		"log":    []byte("some note with log data"),
+		"stream": []byte("stdout"),
+		"kubernetes": map[string]interface{}{
+			"host":           []byte("some host"),
+			"pod_name":       []byte("some object name"),
+			"namespace_name": []byte("some namespace"),
+		},
+	}
 
-	It("forwards event to fluent bit when an event is added", func() {
-		spyFl := &spyFlogger{}
-		c := event.NewController(spyFl)
-		ev := &v1.Event{
-			InvolvedObject: v1.ObjectReference{
-				Name:      "some object name",
-				Namespace: "some namespace",
-			},
-			Message: "some note with log data",
-			Source: v1.EventSource{
-				Host: "some host",
-			},
-		}
+	c.OnAdd(ev)
 
-		expected := map[string]interface{}{
-			"log":    []byte("some note with log data"),
-			"stream": []byte("stdout"),
-			"kubernetes": map[string]interface{}{
-				"host":           []byte("some host"),
-				"pod_name":       []byte("some object name"),
-				"namespace_name": []byte("some namespace"),
-			},
-		}
+	if diff := cmp.Diff(spyFl.receivedMsg, expected); diff != "" {
+		t.Errorf("Unexpected messages (-want +got): %v", diff)
+	}
+	if spyFl.tag != "k8s.event" {
+		t.Errorf("Expected tag to be k8s.event, was %s", spyFl.tag)
+	}
+	if event.ForwarderSent.Value() != 1 {
+		t.Errorf("Expected events sent to be 1, was %d", event.ForwarderSent.Value())
+	}
+}
 
-		c.OnAdd(ev)
+func TestNoopUpdate(t *testing.T) {
+	spyFl := &spyFlogger{
+		t: t,
+	}
+	c := event.NewController(spyFl)
+	c.OnUpdate(nil, nil)
+	if spyFl.called {
+		t.Errorf("Expected not to call Flogger")
+	}
+}
 
-		Expect(spyFl.receivedMsg).To(Equal(expected))
-		Expect(spyFl.tag).To(Equal("k8s.event"))
-		Expect(event.ForwarderSent.Value()).To(BeEquivalentTo(1))
-	})
+func TestNoopDelete(t *testing.T) {
+	spyFl := &spyFlogger{
+		t: t,
+	}
+	c := event.NewController(spyFl)
+	c.OnDelete(nil)
+	if spyFl.called {
+		t.Errorf("Expected not to call Flogger")
+	}
+}
 
-	It("does nothing when OnUpdate is called", func() {
-		spyFl := &spyFlogger{}
-		c := event.NewController(spyFl)
-		c.OnUpdate(nil, nil)
-		Expect(spyFl.called).To(BeFalse())
-	})
+func TestNonV1Event(t *testing.T) {
+	ResetForwarderMetrics()
+	spyFl := &spyFlogger{
+		t: t,
+	}
+	c := event.NewController(spyFl)
 
-	It("does nothing when OnDelete is called", func() {
-		spyFl := &spyFlogger{}
-		c := event.NewController(spyFl)
-		c.OnDelete(nil)
-		Expect(spyFl.called).To(BeFalse())
-	})
+	c.OnAdd("non-v1-event")
+	if spyFl.called {
+		t.Errorf("Expected not to call Flogger")
+	}
 
-	It("does not forward when non v1 event is received", func() {
-		spyFl := &spyFlogger{}
-		c := event.NewController(spyFl)
+	if event.ForwarderSent.Value() != 0 {
+		t.Errorf("Expected to not send event, sent %d", event.ForwarderSent.Value())
+	}
 
-		c.OnAdd("non-v1-event")
-		Expect(spyFl.called).To(BeFalse())
-		Expect(event.ForwarderSent.Value()).To(BeEquivalentTo(0))
-		Expect(event.ForwarderConvertFailed.Value()).To(BeEquivalentTo(1))
-	})
+	if event.ForwarderConvertFailed.Value() != 1 {
+		t.Errorf("Expected to fail to convert send event")
+	}
+}
 
-	It("does not forward when forwarder fails to post", func() {
-		spyFl := &spyFlogger{
-			err: errors.New("some error"),
-		}
-		c := event.NewController(spyFl)
-		ev := &v1.Event{
-			InvolvedObject: v1.ObjectReference{
-				Name:      "some object name",
-				Namespace: "some namespace",
-			},
-			Message: "some note with log data",
-			Source: v1.EventSource{
-				Host: "some host",
-			},
-		}
+func TestFailToPost(t *testing.T) {
+	ResetForwarderMetrics()
+	spyFl := &spyFlogger{
+		err: errors.New("some error"),
+		t:   t,
+	}
+	c := event.NewController(spyFl)
+	ev := &v1.Event{
+		InvolvedObject: v1.ObjectReference{
+			Name:      "some object name",
+			Namespace: "some namespace",
+		},
+		Message: "some note with log data",
+		Source: v1.EventSource{
+			Host: "some host",
+		},
+	}
 
-		c.OnAdd(ev)
+	c.OnAdd(ev)
 
-		Expect(event.ForwarderSent.Value()).To(BeEquivalentTo(0))
-		Expect(event.ForwarderFailed.Value()).To(BeEquivalentTo(1))
-	})
+	if event.ForwarderSent.Value() != 0 {
+		t.Errorf("Expected not to send event, sent %d", event.ForwarderSent.Value())
+	}
+	if event.ForwarderFailed.Value() != 1 {
+		t.Errorf("Expected to fail to forward a event")
+	}
+}
 
-	It("handles empty Source", func() {
-		spyFl := &spyFlogger{}
-		c := event.NewController(spyFl)
-		ev := &v1.Event{
-			InvolvedObject: v1.ObjectReference{
-				Name:      "some object name",
-				Namespace: "some namespace",
-			},
-			Message: "some note with log data",
-		}
+func TestEmptySource(t *testing.T) {
+	spyFl := &spyFlogger{
+		t: t,
+	}
+	c := event.NewController(spyFl)
+	ev := &v1.Event{
+		InvolvedObject: v1.ObjectReference{
+			Name:      "some object name",
+			Namespace: "some namespace",
+		},
+		Message: "some note with log data",
+	}
 
-		expected := map[string]interface{}{
-			"log":    []byte("some note with log data"),
-			"stream": []byte("stdout"),
-			"kubernetes": map[string]interface{}{
-				"host":           []byte(""),
-				"pod_name":       []byte("some object name"),
-				"namespace_name": []byte("some namespace"),
-			},
-		}
+	expected := map[string]interface{}{
+		"log":    []byte("some note with log data"),
+		"stream": []byte("stdout"),
+		"kubernetes": map[string]interface{}{
+			"host":           []byte(""),
+			"pod_name":       []byte("some object name"),
+			"namespace_name": []byte("some namespace"),
+		},
+	}
 
-		c.OnAdd(ev)
+	c.OnAdd(ev)
 
-		Expect(spyFl.receivedMsg).To(Equal(expected))
-		Expect(spyFl.tag).To(Equal("k8s.event"))
-	})
-})
+	if diff := cmp.Diff(spyFl.receivedMsg, expected); diff != "" {
+		t.Errorf("Unexpected messages (-want +got): %v", diff)
+	}
+	if spyFl.tag != "k8s.event" {
+		t.Errorf("Expected tag to be k8s.event, was %s", spyFl.tag)
+	}
+}
+
+func ResetForwarderMetrics() {
+	event.ForwarderSent.Set(0)
+	event.ForwarderFailed.Set(0)
+	event.ForwarderConvertFailed.Set(0)
+}
 
 type spyFlogger struct {
 	err         error
 	called      bool
 	tag         string
 	receivedMsg map[string]interface{}
+	t           *testing.T
 }
 
 func (s *spyFlogger) Post(tag string, message interface{}) error {
@@ -153,7 +191,9 @@ func (s *spyFlogger) Post(tag string, message interface{}) error {
 	}
 	s.tag = tag
 	msg, ok := message.(map[string]interface{})
-	Expect(ok).To(BeTrue())
+	if !ok {
+		s.t.Errorf("message not a map")
+	}
 
 	s.receivedMsg = msg
 
