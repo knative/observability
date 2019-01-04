@@ -16,12 +16,12 @@
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: fluent-bit
+  name: event-controller
 subjects:
 - kind: ServiceAccount
-  name: fluent-bit
+  name: event-controller
   namespace: knative-observability
 roleRef:
   kind: ClusterRole
-  name: fluent-bit
+  name: event-controller
   apiGroup: rbac.authorization.k8s.io
