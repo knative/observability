@@ -131,7 +131,7 @@ func (c *FakeLogSinks) DeleteCollection(options *v1.DeleteOptions, listOptions v
 // Patch applies the patch and returns the patched logSink.
 func (c *FakeLogSinks) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1alpha1.LogSink, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(logsinksResource, c.ns, name, data, subresources...), &v1alpha1.LogSink{})
+		Invokes(testing.NewPatchSubresourceAction(logsinksResource, c.ns, name, pt, data, subresources...), &v1alpha1.LogSink{})
 
 	if obj == nil {
 		return nil, err

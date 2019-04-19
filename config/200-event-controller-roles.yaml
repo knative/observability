@@ -16,6 +16,9 @@ kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: event-controller
+  labels:
+    logs: "true"
+    safeToDelete: "true"
 rules:
 # The event-controller needs to be able to watch events
 - apiGroups: [""]

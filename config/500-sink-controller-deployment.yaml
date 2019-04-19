@@ -12,15 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: sink-controller
   namespace: knative-observability
   labels:
     app: sink-controller
+    logs: "true"
+    safeToDelete: "true"
 spec:
   replicas: 1
+  selector:
+    matchLabels:
+      app: sink-controller
   template:
     metadata:
       labels:
@@ -38,3 +43,5 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        - name: SINK_CONFIG_STATS_ADDR
+          value: "localhost:5000"

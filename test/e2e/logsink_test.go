@@ -19,21 +19,202 @@ limitations under the License.
 package e2e
 
 import (
+	"fmt"
 	"testing"
 
+	"github.com/knative/observability/pkg/apis/sink/v1alpha1"
+	observabilityv1alpha1 "github.com/knative/observability/pkg/client/clientset/versioned/typed/sink/v1alpha1"
 	"github.com/knative/pkg/test/logging"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestLogSink(t *testing.T) {
-	const prefix = "log-sink-"
+func TestSyslogLogSink(t *testing.T) {
+	var prefix = randomTestPrefix("syslog-log-sink-")
 
-	logger := logging.GetContextLogger("TestLogSink")
+	logger := logging.GetContextLogger("TestSyslogLogSink")
 	clients, err := newClients()
 	assertErr(t, "Error creating newClients: %v", err)
 
-	createLogSink(t, logger, prefix, clients.sinkClient)
-	createSyslogReceiver(t, logger, prefix, clients.kubeClient)
+	cleanup := createSyslogLogSink(t, logger, prefix, clients.sinkClient, observabilityTestNamespace)
+	defer cleanup()
+	createSyslogReceiver(t, logger, prefix, clients.kubeClient, observabilityTestNamespace)
 	waitForFluentBitToBeReady(t, logger, prefix, clients.kubeClient)
-	emitLogs(t, logger, prefix, clients.kubeClient)
-	assertTheLogsGotThere(t, logger, prefix, clients.kubeClient)
+	emitLogs(t, logger, prefix, clients.kubeClient, observabilityTestNamespace)
+	emitLogs(t, logger, prefix, clients.kubeClient, crosstalkTestNamespace)
+	assertOnCrosstalk(t, logger, prefix, clients, observabilityTestNamespace, func(m ReceiverMetrics) error {
+		if m.Cluster != 10 {
+			return fmt.Errorf("cluster count != 10")
+		}
+		messagesObservability, ok := m.Namespaced[observabilityTestNamespace]
+		if !ok || messagesObservability != 10 {
+			return fmt.Errorf("test namespace count != 10")
+		}
+		_, ok = m.Namespaced[crosstalkTestNamespace]
+		if ok {
+			return fmt.Errorf("crosstalk namespace messages came through")
+		}
+		return nil
+	},
+	)
+}
+
+func XTestEventsLogSink(t *testing.T) {
+	var prefix = randomTestPrefix("event-log-sink-")
+
+	logger := logging.GetContextLogger("TestEventsLogSink")
+	clients, err := newClients()
+	assertErr(t, "Error creating newClients: %v", err)
+	logger.Infof("Test Prefix: %s", prefix)
+
+	cleanup := createSyslogLogSink(t, logger, prefix, clients.sinkClient, observabilityTestNamespace)
+	defer cleanup()
+	createSyslogReceiver(t, logger, prefix, clients.kubeClient, observabilityTestNamespace)
+	waitForFluentBitToBeReady(t, logger, prefix, clients.kubeClient)
+	emitEvents(t, logger, prefix, clients.kubeClient, observabilityTestNamespace)
+	emitEvents(t, logger, prefix, clients.kubeClient, crosstalkTestNamespace)
+	assertOnCrosstalk(t, logger, prefix, clients, observabilityTestNamespace, func(m ReceiverMetrics) error {
+		if m.Cluster != 10 {
+			return fmt.Errorf("cluster count != 10")
+		}
+		messagesObservability, ok := m.Namespaced[observabilityTestNamespace]
+		if !ok || messagesObservability != 10 {
+			return fmt.Errorf("test namespace count != 10")
+		}
+		_, ok = m.Namespaced[crosstalkTestNamespace]
+		if ok {
+			return fmt.Errorf("crosstalk namespace messages came through")
+		}
+		return nil
+	},
+	)
+}
+
+func TestWebhookLogSink(t *testing.T) {
+	var prefix = randomTestPrefix("webhook-log-sink-")
+
+	logger := logging.GetContextLogger("TestWebhookLogSink")
+	clients, err := newClients()
+	assertErr(t, "Error creating newClients: %v", err)
+
+	logger.Infof("Test Prefix: %s", prefix)
+	cleanup := createWebhookLogSink(t, logger, prefix, clients.sinkClient, observabilityTestNamespace)
+	defer cleanup()
+	createSyslogReceiver(t, logger, prefix, clients.kubeClient, observabilityTestNamespace)
+	waitForFluentBitToBeReady(t, logger, prefix, clients.kubeClient)
+	emitLogs(t, logger, prefix, clients.kubeClient, observabilityTestNamespace)
+	emitLogs(t, logger, prefix, clients.kubeClient, crosstalkTestNamespace)
+	assertOnCrosstalk(t, logger, prefix, clients, observabilityTestNamespace, func(m ReceiverMetrics) error {
+		messagesObservability, ok := m.WebhookNamespaced[observabilityTestNamespace]
+		if !ok || messagesObservability < 10 {
+			return fmt.Errorf("test namespace messages < 10")
+		}
+		_, ok = m.WebhookNamespaced[crosstalkTestNamespace]
+		if ok {
+			return fmt.Errorf("crosstalk namespace messages came through")
+		}
+		return nil
+	})
+}
+
+func TestCrosstalkLogSink(t *testing.T) {
+	var prefix = randomTestPrefix("test-crosstalk-logsink")
+
+	logger := logging.GetContextLogger("TestCrosstalkLogSink")
+	clients, err := newClients()
+	assertErr(t, "Error creating newClients: %v", err)
+
+	cleanup1 := createSyslogLogSink(t, logger, prefix, clients.sinkClient, observabilityTestNamespace)
+	defer cleanup1()
+	cleanup2 := createSyslogLogSink(t, logger, prefix, clients.sinkClient, crosstalkTestNamespace)
+	defer cleanup2()
+	createSyslogReceiver(t, logger, prefix, clients.kubeClient, observabilityTestNamespace)
+	createSyslogReceiver(t, logger, prefix, clients.kubeClient, crosstalkTestNamespace)
+	waitForFluentBitToBeReady(t, logger, prefix, clients.kubeClient)
+	emitLogs(t, logger, prefix, clients.kubeClient, observabilityTestNamespace)
+	emitLogs(t, logger, prefix, clients.kubeClient, crosstalkTestNamespace)
+	assertOnCrosstalk(t, logger, prefix, clients, observabilityTestNamespace, func(m ReceiverMetrics) error {
+		if m.Cluster != 10 {
+			return fmt.Errorf("cluster count != 10")
+		}
+		messagesObservability, ok := m.Namespaced[observabilityTestNamespace]
+		if !ok || messagesObservability != 10 {
+			return fmt.Errorf("test namespace count != 10")
+		}
+		_, ok = m.Namespaced[crosstalkTestNamespace]
+		if ok {
+			return fmt.Errorf("crosstalk namespace messages came through")
+		}
+		return nil
+	},
+	)
+	assertOnCrosstalk(t, logger, prefix, clients, crosstalkTestNamespace, func(m ReceiverMetrics) error {
+		if m.Cluster != 10 {
+			return fmt.Errorf("cluster count != 10")
+		}
+		messagesObservability, ok := m.Namespaced[crosstalkTestNamespace]
+		if !ok || messagesObservability != 10 {
+			return fmt.Errorf("crosstalk namespace count != 10")
+		}
+		_, ok = m.Namespaced[observabilityTestNamespace]
+		if ok {
+			return fmt.Errorf("observability namespace messages came through")
+		}
+		return nil
+	},
+	)
+}
+
+func createSyslogLogSink(
+	t *testing.T,
+	logger *logging.BaseLogger,
+	prefix string,
+	sc observabilityv1alpha1.ObservabilityV1alpha1Interface,
+	namespace string,
+) func() error {
+	logger.Info("Creating the syslog LogSink")
+	_, err := sc.LogSinks(namespace).Create(&v1alpha1.LogSink{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      prefix + "test",
+			Namespace: namespace,
+		},
+		Spec: v1alpha1.SinkSpec{
+			Type: "syslog",
+			SyslogSpec: v1alpha1.SyslogSpec{
+				Host: prefix + syslogReceiverSuffix + "." + namespace,
+				Port: 24903,
+			},
+		},
+	})
+	assertErr(t, "Error creating syslog LogSink: %v", err)
+
+	return func() error {
+		return sc.LogSinks(namespace).Delete(prefix+"test", &metav1.DeleteOptions{})
+	}
+}
+
+func createWebhookLogSink(
+	t *testing.T,
+	logger *logging.BaseLogger,
+	prefix string,
+	sc observabilityv1alpha1.ObservabilityV1alpha1Interface,
+	namespace string,
+) func() error {
+	logger.Info("Creating the webhook LogSink")
+	_, err := sc.LogSinks(namespace).Create(&v1alpha1.LogSink{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      prefix + "test",
+			Namespace: namespace,
+		},
+		Spec: v1alpha1.SinkSpec{
+			Type: "webhook",
+			WebhookSpec: v1alpha1.WebhookSpec{
+				URL: "http://" + prefix + syslogReceiverSuffix + "." + namespace + ":7070/webhook",
+			},
+		},
+	})
+	assertErr(t, "Error creating webhook LogSink: %v", err)
+
+	return func() error {
+		return sc.LogSinks(namespace).Delete(prefix+"test", &metav1.DeleteOptions{})
+	}
 }

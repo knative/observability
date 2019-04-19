@@ -1,0 +1,32 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cert-generator
+  namespace: knative-observability
+  labels:
+    job: cert-generator
+    metrics: "true"
+    logs: "true"
+    safeToDelete: "true"
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        job: cert-generator
+    spec:
+      serviceAccountName: cert-generator
+      containers:
+      - name: cert-generator
+        image: oratos/cert-generator:v0.20.0
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: CA_CERT_NAME
+          value: observability-ca
+        - name: CERTS_TO_GENERATE
+          value: validator
+      restartPolicy: Never

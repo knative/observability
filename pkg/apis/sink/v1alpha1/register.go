@@ -47,6 +47,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&LogSinkList{},
 		&ClusterLogSink{},
 		&ClusterLogSinkList{},
+		&ClusterMetricSink{},
+		&ClusterMetricSinkList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil

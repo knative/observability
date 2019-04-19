@@ -1,0 +1,17 @@
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: cert-generator
+  namespace: knative-observability
+  labels:
+    logs: "true"
+    metrics: "true"
+    safeToDelete: "true"
+subjects:
+- kind: ServiceAccount
+  name: cert-generator
+  namespace: knative-observability
+roleRef:
+  kind: Role
+  name: cert-generator
+  apiGroup: rbac.authorization.k8s.io

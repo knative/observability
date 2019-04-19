@@ -54,7 +54,7 @@ set -e
 
 failed=false
 
-for f in "$working_dir/valid"/*; do
+for f in $(ls "$working_dir/valid"/* | grep -v 'pending'); do
     if out="$(kubectl apply -f "$f" 2>&1)"; then
         echo "PASSED: valid/$(basename "$f")"
     else
@@ -64,7 +64,7 @@ for f in "$working_dir/valid"/*; do
     fi
 done
 
-for f in "$working_dir/invalid"/*; do
+for f in $(ls "$working_dir/invalid"/* | grep -v 'pending'); do
     if out="$(kubectl apply -f "$f" 2>&1)"; then
         echo "FAILED: invalid/$(basename "$f")"
         echo "$out"

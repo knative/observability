@@ -1,0 +1,46 @@
+apiVersion: admissionregistration.k8s.io/v1beta1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: validator.observability.knative.dev
+  labels:
+    metrics: "true"
+    logs: "true"
+    safeToDelete: "true"
+webhooks:
+  - name: metric.validator.observability.knative.dev
+    rules:
+      - apiGroups:
+          - "observability.knative.dev"
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - clustermetricsinks
+    failurePolicy: Fail
+    clientConfig:
+      service:
+        name: validator
+        namespace: knative-observability
+        path: /metricsink
+      caBundle: ""
+  - name: log.validator.observability.knative.dev
+    rules:
+      - apiGroups:
+          - "observability.knative.dev"
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - clusterlogsinks
+          - logsinks
+    failurePolicy: Fail
+    clientConfig:
+      service:
+        name: validator
+        namespace: knative-observability
+        path: /logsink
+      caBundle: ""

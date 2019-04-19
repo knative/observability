@@ -17,18 +17,25 @@ package event
 
 import (
 	"expvar"
+	"fmt"
 	"log"
 
 	"k8s.io/api/core/v1"
 )
 
 var (
+	ForwarderReceived      *expvar.Int
+	ForwarderUpdate        *expvar.Int
+	ForwarderDelete        *expvar.Int
 	ForwarderSent          *expvar.Int
 	ForwarderFailed        *expvar.Int
 	ForwarderConvertFailed *expvar.Int
 )
 
 func init() {
+	ForwarderReceived = expvar.NewInt("eventcontroller_forwarder_received_count")
+	ForwarderUpdate = expvar.NewInt("eventcontroller_forwarder_update_count")
+	ForwarderDelete = expvar.NewInt("eventcontroller_forwarder_delete_count")
 	ForwarderSent = expvar.NewInt("eventcontroller_forwarder_sent_count")
 	ForwarderFailed = expvar.NewInt("eventcontroller_forwarder_failed_count")
 	ForwarderConvertFailed = expvar.NewInt("eventcontroller_convert_failed_count")
@@ -49,6 +56,7 @@ func NewController(l Forwarder) *Controller {
 }
 
 func (c *Controller) OnAdd(o interface{}) {
+	ForwarderReceived.Add(1)
 	e, ok := o.(*v1.Event)
 	if !ok {
 		ForwarderConvertFailed.Add(1)
@@ -63,24 +71,33 @@ func (c *Controller) OnAdd(o interface{}) {
 			"host":           []byte(e.Source.Host),
 			"pod_name":       []byte(e.InvolvedObject.Name),
 			"namespace_name": []byte(e.InvolvedObject.Namespace),
+			"source_type":    []byte("k8s.event"),
 		},
 	}
 
-	err := c.f.Post("k8s.event", m)
+	tag := fmt.Sprintf("k8s.event._%s_", e.InvolvedObject.Namespace)
+
+	c.sendToFluent(tag, m)
+}
+
+func (c *Controller) sendToFluent(tag string, m map[string]interface{}) {
+	err := c.f.Post(tag, m)
 	if err != nil {
-		ForwarderFailed.Add(1)
 		if ForwarderFailed.Value()%100 == 0 {
-			log.Printf("unable to forward event: %s\n", err)
+			log.Printf("unable to forward event: %s\n", err.Error())
 		}
+		ForwarderFailed.Add(1)
 		return
 	}
 	ForwarderSent.Add(1)
 }
 
 func (c *Controller) OnDelete(o interface{}) {
+	ForwarderDelete.Add(1)
 	// Do nothing!
 }
 
 func (c *Controller) OnUpdate(o interface{}, n interface{}) {
+	ForwarderUpdate.Add(1)
 	// Do nothing!
 }

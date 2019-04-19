@@ -21,13 +21,14 @@ package v1alpha1
 import (
 	v1alpha1 "github.com/knative/observability/pkg/apis/sink/v1alpha1"
 	"github.com/knative/observability/pkg/client/clientset/versioned/scheme"
-	serializer "k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
 	rest "k8s.io/client-go/rest"
 )
 
 type ObservabilityV1alpha1Interface interface {
 	RESTClient() rest.Interface
 	ClusterLogSinksGetter
+	ClusterMetricSinksGetter
 	LogSinksGetter
 }
 
@@ -38,6 +39,10 @@ type ObservabilityV1alpha1Client struct {
 
 func (c *ObservabilityV1alpha1Client) ClusterLogSinks(namespace string) ClusterLogSinkInterface {
 	return newClusterLogSinks(c, namespace)
+}
+
+func (c *ObservabilityV1alpha1Client) ClusterMetricSinks(namespace string) ClusterMetricSinkInterface {
+	return newClusterMetricSinks(c, namespace)
 }
 
 func (c *ObservabilityV1alpha1Client) LogSinks(namespace string) LogSinkInterface {

@@ -20,4 +20,6 @@ package v1alpha1
 
 type ClusterLogSinkExpansion interface{}
 
+type ClusterMetricSinkExpansion interface{}
+
 type LogSinkExpansion interface{}

@@ -21,7 +21,7 @@ package v1alpha1
 import (
 	time "time"
 
-	sink_v1alpha1 "github.com/knative/observability/pkg/apis/sink/v1alpha1"
+	sinkv1alpha1 "github.com/knative/observability/pkg/apis/sink/v1alpha1"
 	versioned "github.com/knative/observability/pkg/client/clientset/versioned"
 	internalinterfaces "github.com/knative/observability/pkg/client/informers/externalversions/internalinterfaces"
 	v1alpha1 "github.com/knative/observability/pkg/client/listers/sink/v1alpha1"
@@ -70,7 +70,7 @@ func NewFilteredClusterLogSinkInformer(client versioned.Interface, namespace str
 				return client.ObservabilityV1alpha1().ClusterLogSinks(namespace).Watch(options)
 			},
 		},
-		&sink_v1alpha1.ClusterLogSink{},
+		&sinkv1alpha1.ClusterLogSink{},
 		resyncPeriod,
 		indexers,
 	)
@@ -81,7 +81,7 @@ func (f *clusterLogSinkInformer) defaultInformer(client versioned.Interface, res
 }
 
 func (f *clusterLogSinkInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&sink_v1alpha1.ClusterLogSink{}, f.defaultInformer)
+	return f.factory.InformerFor(&sinkv1alpha1.ClusterLogSink{}, f.defaultInformer)
 }
 
 func (f *clusterLogSinkInformer) Lister() v1alpha1.ClusterLogSinkLister {

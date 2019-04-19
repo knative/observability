@@ -17,32 +17,34 @@ package sink_test
 
 import (
 	"encoding/json"
-	"strings"
+	"fmt"
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/knative/observability/pkg/apis/sink/v1alpha1"
 	"github.com/knative/observability/pkg/sink"
+	"github.com/knative/observability/pkg/sink/flbconfig"
 )
 
 var emptyConfig = `
 [OUTPUT]
     Name null
     Match *
+    StatsAddr 127.0.0.1:5000
 `
 
 func TestEmptyConfig(t *testing.T) {
-	config := sink.NewConfig().String()
+	config := sink.NewConfig("127.0.0.1:5000").String()
 	if config != emptyConfig {
 		t.Errorf("Empty Config not equal: Expected: %s Actual: %s", emptyConfig, config)
 	}
 }
 
 func TestSingleSink(t *testing.T) {
-	sc := sink.NewConfig()
+	sc := sink.NewConfig("127.0.0.1:5000")
 	sink := &v1alpha1.LogSink{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "some-name",
@@ -50,32 +52,77 @@ func TestSingleSink(t *testing.T) {
 		},
 		Spec: v1alpha1.SinkSpec{
 			Type: "syslog",
-			Host: "example.com",
-			Port: 12345,
+			SyslogSpec: v1alpha1.SyslogSpec{
+				Host: "example.com",
+				Port: 12345,
+			},
 		},
 	}
-
 	sc.UpsertSink(sink)
 
-	expectConfig(
-		sc.String(),
-		ConfigComparer{
-			Name:  "syslog",
-			Match: "*",
-			NamespaceSinks: []NamespaceSink{
-				{
-					Addr:      "example.com:12345",
-					Namespace: "some-namespace",
-				},
-			},
-			ClusterSinks: []ClusterSink{},
-		},
+	config := sc.String()
+
+	f, err := flbconfig.Parse("", config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedConfig := sinksToConfigAST(
 		t,
+		[]namespaceSink{
+			{
+				Name:      "some-name",
+				Addr:      "example.com:12345",
+				Namespace: "some-namespace",
+			},
+		},
+		[]clusterSink{},
 	)
+	if !cmp.Equal(f, expectedConfig) {
+		t.Fatal(cmp.Diff(f, expectedConfig))
+	}
+}
+
+func TestNoHostname(t *testing.T) {
+	sc := sink.NewConfig("127.0.0.1:5000")
+	sink := &v1alpha1.LogSink{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "some-name",
+			Namespace: "some-namespace",
+		},
+		Spec: v1alpha1.SinkSpec{
+			Type: "syslog",
+			SyslogSpec: v1alpha1.SyslogSpec{
+				Host: "example.com",
+				Port: 12345,
+			},
+		},
+	}
+	sc.UpsertSink(sink)
+
+	config := sc.String()
+
+	f, err := flbconfig.Parse("", config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedConfig := sinksToConfigAST(
+		t,
+		[]namespaceSink{
+			{
+				Name:      "some-name",
+				Addr:      "example.com:12345",
+				Namespace: "some-namespace",
+			},
+		},
+		[]clusterSink{},
+	)
+	if !cmp.Equal(f, expectedConfig) {
+		t.Fatal(cmp.Diff(f, expectedConfig))
+	}
 }
 
 func TestMultipleSinks(t *testing.T) {
-	sc := sink.NewConfig()
+	sc := sink.NewConfig("127.0.0.1:5000")
 	s1 := &v1alpha1.LogSink{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "some-name-1",
@@ -83,8 +130,10 @@ func TestMultipleSinks(t *testing.T) {
 		},
 		Spec: v1alpha1.SinkSpec{
 			Type: "syslog",
-			Host: "example.com",
-			Port: 12345,
+			SyslogSpec: v1alpha1.SyslogSpec{
+				Host: "example.com",
+				Port: 12345,
+			},
 		},
 	}
 	s2 := &v1alpha1.LogSink{
@@ -94,44 +143,54 @@ func TestMultipleSinks(t *testing.T) {
 		},
 		Spec: v1alpha1.SinkSpec{
 			Type: "syslog",
-			Host: "example.org",
-			Port: 45678,
+			SyslogSpec: v1alpha1.SyslogSpec{
+				Host: "example.org",
+				Port: 45678,
+			},
 		},
 	}
-
 	sc.UpsertSink(s1)
 	sc.UpsertSink(s2)
 
-	expectConfig(
-		sc.String(),
-		ConfigComparer{
-			Name:  "syslog",
-			Match: "*",
-			NamespaceSinks: []NamespaceSink{
-				{
-					Addr:      "example.com:12345",
-					Namespace: "ns1",
-				},
-				{
-					Addr:      "example.org:45678",
-					Namespace: "ns2",
-				},
+	config := sc.String()
+
+	f, err := flbconfig.Parse("", config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedConfig := sinksToConfigAST(
+		t,
+		[]namespaceSink{
+			{
+				Name:      "some-name-1",
+				Addr:      "example.com:12345",
+				Namespace: "ns1",
+			},
+			{
+				Name:      "some-name-2",
+				Addr:      "example.org:45678",
+				Namespace: "ns2",
 			},
 		},
-		t,
+		[]clusterSink{},
 	)
+	if !cmp.Equal(f, expectedConfig) {
+		t.Fatal(cmp.Diff(f, expectedConfig))
+	}
 }
 
 func TestMultipleClusterSinks(t *testing.T) {
-	sc := sink.NewConfig()
+	sc := sink.NewConfig("127.0.0.1:5000")
 	s1 := &v1alpha1.ClusterLogSink{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "some-name-1",
 		},
 		Spec: v1alpha1.SinkSpec{
 			Type: "syslog",
-			Host: "example.com",
-			Port: 12345,
+			SyslogSpec: v1alpha1.SyslogSpec{
+				Host: "example.com",
+				Port: 12345,
+			},
 		},
 	}
 	s2 := &v1alpha1.ClusterLogSink{
@@ -140,34 +199,43 @@ func TestMultipleClusterSinks(t *testing.T) {
 		},
 		Spec: v1alpha1.SinkSpec{
 			Type: "syslog",
-			Host: "example.org",
-			Port: 45678,
+			SyslogSpec: v1alpha1.SyslogSpec{
+				Host: "example.org",
+				Port: 45678,
+			},
 		},
 	}
 
 	sc.UpsertClusterSink(s1)
 	sc.UpsertClusterSink(s2)
 
-	expectConfig(
-		sc.String(),
-		ConfigComparer{
-			Name:  "syslog",
-			Match: "*",
-			ClusterSinks: []ClusterSink{
-				{
-					Addr: "example.com:12345",
-				},
-				{
-					Addr: "example.org:45678",
-				},
+	config := sc.String()
+
+	f, err := flbconfig.Parse("", config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedConfig := sinksToConfigAST(
+		t,
+		[]namespaceSink{},
+		[]clusterSink{
+			{
+				Name: "some-name-1",
+				Addr: "example.com:12345",
+			},
+			{
+				Name: "some-name-2",
+				Addr: "example.org:45678",
 			},
 		},
-		t,
 	)
+	if !cmp.Equal(f, expectedConfig) {
+		t.Fatal(cmp.Diff(f, expectedConfig))
+	}
 }
 
 func TestSinksWithClusterSinks(t *testing.T) {
-	sc := sink.NewConfig()
+	sc := sink.NewConfig("127.0.0.1:5000")
 	s1 := &v1alpha1.LogSink{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "some-name-1",
@@ -175,8 +243,10 @@ func TestSinksWithClusterSinks(t *testing.T) {
 		},
 		Spec: v1alpha1.SinkSpec{
 			Type: "syslog",
-			Host: "example.com",
-			Port: 12345,
+			SyslogSpec: v1alpha1.SyslogSpec{
+				Host: "example.com",
+				Port: 12345,
+			},
 		},
 	}
 	s2 := &v1alpha1.ClusterLogSink{
@@ -185,37 +255,45 @@ func TestSinksWithClusterSinks(t *testing.T) {
 		},
 		Spec: v1alpha1.SinkSpec{
 			Type: "syslog",
-			Host: "example.org",
-			Port: 45678,
+			SyslogSpec: v1alpha1.SyslogSpec{
+				Host: "example.org",
+				Port: 45678,
+			},
 		},
 	}
 
 	sc.UpsertSink(s1)
 	sc.UpsertClusterSink(s2)
 
-	expectConfig(
-		sc.String(),
-		ConfigComparer{
-			Name:  "syslog",
-			Match: "*",
-			NamespaceSinks: []NamespaceSink{
-				{
-					Addr:      "example.com:12345",
-					Namespace: "ns1",
-				},
-			},
-			ClusterSinks: []ClusterSink{
-				{
-					Addr: "example.org:45678",
-				},
+	config := sc.String()
+
+	f, err := flbconfig.Parse("", config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedConfig := sinksToConfigAST(
+		t,
+		[]namespaceSink{
+			{
+				Name:      "some-name-1",
+				Addr:      "example.com:12345",
+				Namespace: "ns1",
 			},
 		},
-		t,
+		[]clusterSink{
+			{
+				Name: "some-name-2",
+				Addr: "example.org:45678",
+			},
+		},
 	)
+	if !cmp.Equal(f, expectedConfig) {
+		t.Fatal(cmp.Diff(f, expectedConfig))
+	}
 }
 
 func TestAllSinksRemoved(t *testing.T) {
-	sc := sink.NewConfig()
+	sc := sink.NewConfig("127.0.0.1:5000")
 	s := &v1alpha1.LogSink{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "some-name-1",
@@ -223,8 +301,10 @@ func TestAllSinksRemoved(t *testing.T) {
 		},
 		Spec: v1alpha1.SinkSpec{
 			Type: "syslog",
-			Host: "ns.example.com",
-			Port: 12345,
+			SyslogSpec: v1alpha1.SyslogSpec{
+				Host: "ns.example.com",
+				Port: 12345,
+			},
 		},
 	}
 	cs := &v1alpha1.ClusterLogSink{
@@ -233,8 +313,10 @@ func TestAllSinksRemoved(t *testing.T) {
 		},
 		Spec: v1alpha1.SinkSpec{
 			Type: "syslog",
-			Host: "cl.example.org",
-			Port: 45678,
+			SyslogSpec: v1alpha1.SyslogSpec{
+				Host: "cl.example.org",
+				Port: 45678,
+			},
 		},
 	}
 
@@ -242,13 +324,18 @@ func TestAllSinksRemoved(t *testing.T) {
 	sc.UpsertClusterSink(cs)
 	sc.DeleteSink(s)
 	sc.DeleteClusterSink(cs)
+
 	if sc.String() != emptyConfig {
-		t.Errorf("Empty Config not equal: Expected: %s Actual: %s", emptyConfig, sc.String())
+		t.Errorf(
+			"Empty Config not equal: Expected: %s Actual: %s",
+			emptyConfig,
+			sc.String(),
+		)
 	}
 }
 
 func TestRemoveSink(t *testing.T) {
-	sc := sink.NewConfig()
+	sc := sink.NewConfig("127.0.0.1:5000")
 	s1 := &v1alpha1.LogSink{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "some-name-1",
@@ -256,8 +343,10 @@ func TestRemoveSink(t *testing.T) {
 		},
 		Spec: v1alpha1.SinkSpec{
 			Type: "syslog",
-			Host: "example1.com",
-			Port: 12345,
+			SyslogSpec: v1alpha1.SyslogSpec{
+				Host: "example1.com",
+				Port: 12345,
+			},
 		},
 	}
 	s2 := &v1alpha1.ClusterLogSink{
@@ -266,8 +355,10 @@ func TestRemoveSink(t *testing.T) {
 		},
 		Spec: v1alpha1.SinkSpec{
 			Type: "syslog",
-			Host: "example2.com",
-			Port: 12345,
+			SyslogSpec: v1alpha1.SyslogSpec{
+				Host: "example2.com",
+				Port: 12345,
+			},
 		},
 	}
 
@@ -275,23 +366,29 @@ func TestRemoveSink(t *testing.T) {
 	sc.UpsertClusterSink(s2)
 	sc.DeleteSink(s1)
 
-	expectConfig(
-		sc.String(),
-		ConfigComparer{
-			Name:  "syslog",
-			Match: "*",
-			ClusterSinks: []ClusterSink{
-				{
-					Addr: "example2.com:12345",
-				},
+	config := sc.String()
+
+	f, err := flbconfig.Parse("", config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedConfig := sinksToConfigAST(
+		t,
+		[]namespaceSink{},
+		[]clusterSink{
+			{
+				Name: "some-name-2",
+				Addr: "example2.com:12345",
 			},
 		},
-		t,
 	)
+	if !cmp.Equal(f, expectedConfig) {
+		t.Fatal(cmp.Diff(f, expectedConfig))
+	}
 }
 
 func TestRemoveClusterSink(t *testing.T) {
-	sc := sink.NewConfig()
+	sc := sink.NewConfig("127.0.0.1:5000")
 	s1 := &v1alpha1.LogSink{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "some-name-1",
@@ -299,8 +396,10 @@ func TestRemoveClusterSink(t *testing.T) {
 		},
 		Spec: v1alpha1.SinkSpec{
 			Type: "syslog",
-			Host: "example.com",
-			Port: 12345,
+			SyslogSpec: v1alpha1.SyslogSpec{
+				Host: "example.com",
+				Port: 12345,
+			},
 		},
 	}
 	s2 := &v1alpha1.ClusterLogSink{
@@ -309,8 +408,10 @@ func TestRemoveClusterSink(t *testing.T) {
 		},
 		Spec: v1alpha1.SinkSpec{
 			Type: "syslog",
-			Host: "example.org",
-			Port: 45678,
+			SyslogSpec: v1alpha1.SyslogSpec{
+				Host: "example.org",
+				Port: 45678,
+			},
 		},
 	}
 
@@ -318,24 +419,30 @@ func TestRemoveClusterSink(t *testing.T) {
 	sc.UpsertClusterSink(s2)
 	sc.DeleteClusterSink(s2)
 
-	expectConfig(
-		sc.String(),
-		ConfigComparer{
-			Name:  "syslog",
-			Match: "*",
-			NamespaceSinks: []NamespaceSink{
-				{
-					Addr:      "example.com:12345",
-					Namespace: "ns1",
-				},
+	config := sc.String()
+
+	f, err := flbconfig.Parse("", config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedConfig := sinksToConfigAST(
+		t,
+		[]namespaceSink{
+			{
+				Name:      "some-name-1",
+				Addr:      "example.com:12345",
+				Namespace: "ns1",
 			},
 		},
-		t,
+		[]clusterSink{},
 	)
+	if !cmp.Equal(f, expectedConfig) {
+		t.Fatal(cmp.Diff(f, expectedConfig))
+	}
 }
 
 func TestUpdateSink(t *testing.T) {
-	sc := sink.NewConfig()
+	sc := sink.NewConfig("127.0.0.1:5000")
 	s := &v1alpha1.LogSink{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "some-name-1",
@@ -343,8 +450,10 @@ func TestUpdateSink(t *testing.T) {
 		},
 		Spec: v1alpha1.SinkSpec{
 			Type: "syslog",
-			Host: "ns.example.com",
-			Port: 12345,
+			SyslogSpec: v1alpha1.SyslogSpec{
+				Host: "ns.example.com",
+				Port: 12345,
+			},
 		},
 	}
 	cs := &v1alpha1.ClusterLogSink{
@@ -353,8 +462,10 @@ func TestUpdateSink(t *testing.T) {
 		},
 		Spec: v1alpha1.SinkSpec{
 			Type: "syslog",
-			Host: "cl.example.org",
-			Port: 45678,
+			SyslogSpec: v1alpha1.SyslogSpec{
+				Host: "cl.example.org",
+				Port: 45678,
+			},
 		},
 	}
 
@@ -365,29 +476,35 @@ func TestUpdateSink(t *testing.T) {
 	sc.UpsertSink(s)
 	sc.UpsertClusterSink(cs)
 
-	expectConfig(
-		sc.String(),
-		ConfigComparer{
-			Name:  "syslog",
-			Match: "*",
-			NamespaceSinks: []NamespaceSink{
-				{
-					Addr:      "ns.sample.com:12345",
-					Namespace: "ns1",
-				},
-			},
-			ClusterSinks: []ClusterSink{
-				{
-					Addr: "cl.sample.org:45678",
-				},
+	config := sc.String()
+
+	f, err := flbconfig.Parse("", config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedConfig := sinksToConfigAST(
+		t,
+		[]namespaceSink{
+			{
+				Name:      "some-name-1",
+				Addr:      "ns.sample.com:12345",
+				Namespace: "ns1",
 			},
 		},
-		t,
+		[]clusterSink{
+			{
+				Name: "some-name-1",
+				Addr: "cl.sample.org:45678",
+			},
+		},
 	)
+	if !cmp.Equal(f, expectedConfig) {
+		t.Fatal(cmp.Diff(f, expectedConfig))
+	}
 }
 
 func TestUpdateConcurrency(t *testing.T) {
-	sc := sink.NewConfig()
+	sc := sink.NewConfig("127.0.0.1:5000")
 	s1 := &v1alpha1.LogSink{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "some-name-1",
@@ -395,8 +512,10 @@ func TestUpdateConcurrency(t *testing.T) {
 		},
 		Spec: v1alpha1.SinkSpec{
 			Type: "syslog",
-			Host: "example.com",
-			Port: 12345,
+			SyslogSpec: v1alpha1.SyslogSpec{
+				Host: "example.com",
+				Port: 12345,
+			},
 		},
 	}
 	s2 := &v1alpha1.ClusterLogSink{
@@ -406,8 +525,10 @@ func TestUpdateConcurrency(t *testing.T) {
 		},
 		Spec: v1alpha1.SinkSpec{
 			Type: "syslog",
-			Host: "example.org",
-			Port: 45678,
+			SyslogSpec: v1alpha1.SyslogSpec{
+				Host: "example.org",
+				Port: 45678,
+			},
 		},
 	}
 
@@ -424,25 +545,31 @@ func TestUpdateConcurrency(t *testing.T) {
 		t.Errorf("timed out waiting for upserts")
 	}
 
-	expectConfig(
-		sc.String(),
-		ConfigComparer{
-			Name:  "syslog",
-			Match: "*",
-			NamespaceSinks: []NamespaceSink{
-				{
-					Addr:      "example.com:12345",
-					Namespace: "ns1",
-				},
-			},
-			ClusterSinks: []ClusterSink{
-				{
-					Addr: "example.org:45678",
-				},
+	config := sc.String()
+
+	f, err := flbconfig.Parse("", config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedConfig := sinksToConfigAST(
+		t,
+		[]namespaceSink{
+			{
+				Name:      "some-name-1",
+				Addr:      "example.com:12345",
+				Namespace: "ns1",
 			},
 		},
-		t,
+		[]clusterSink{
+			{
+				Name: "some-name-2",
+				Addr: "example.org:45678",
+			},
+		},
 	)
+	if !cmp.Equal(f, expectedConfig) {
+		t.Fatal(cmp.Diff(f, expectedConfig))
+	}
 
 	done = make(chan struct{})
 	go func() {
@@ -462,7 +589,7 @@ func TestUpdateConcurrency(t *testing.T) {
 }
 
 func TestSinkOrdering(t *testing.T) {
-	sc := sink.NewConfig()
+	sc := sink.NewConfig("127.0.0.1:5000")
 	s1 := &v1alpha1.LogSink{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "some-name-3",
@@ -470,8 +597,10 @@ func TestSinkOrdering(t *testing.T) {
 		},
 		Spec: v1alpha1.SinkSpec{
 			Type: "syslog",
-			Host: "example.com",
-			Port: 12345,
+			SyslogSpec: v1alpha1.SyslogSpec{
+				Host: "example.com",
+				Port: 12345,
+			},
 		},
 	}
 	s2 := &v1alpha1.LogSink{
@@ -480,8 +609,10 @@ func TestSinkOrdering(t *testing.T) {
 		},
 		Spec: v1alpha1.SinkSpec{
 			Type: "syslog",
-			Host: "example.com",
-			Port: 12345,
+			SyslogSpec: v1alpha1.SyslogSpec{
+				Host: "example.com",
+				Port: 12345,
+			},
 		},
 	}
 	s3 := &v1alpha1.LogSink{
@@ -491,8 +622,10 @@ func TestSinkOrdering(t *testing.T) {
 		},
 		Spec: v1alpha1.SinkSpec{
 			Type: "syslog",
-			Host: "example.org",
-			Port: 45678,
+			SyslogSpec: v1alpha1.SyslogSpec{
+				Host: "example.org",
+				Port: 45678,
+			},
 		},
 	}
 	s4 := &v1alpha1.LogSink{
@@ -502,8 +635,10 @@ func TestSinkOrdering(t *testing.T) {
 		},
 		Spec: v1alpha1.SinkSpec{
 			Type: "syslog",
-			Host: "example.org",
-			Port: 12345,
+			SyslogSpec: v1alpha1.SyslogSpec{
+				Host: "example.org",
+				Port: 12345,
+			},
 		},
 	}
 
@@ -512,46 +647,57 @@ func TestSinkOrdering(t *testing.T) {
 	sc.UpsertSink(s2)
 	sc.UpsertSink(s1)
 
-	expectConfig(
-		sc.String(),
-		ConfigComparer{
-			Name:  "syslog",
-			Match: "*",
-			NamespaceSinks: []NamespaceSink{
-				{
-					Addr:      "example.com:12345",
-					Namespace: "a-ns1",
-				},
-				{
-					Addr:      "example.com:12345",
-					Namespace: "default",
-				},
-				{
-					Addr:      "example.org:45678",
-					Namespace: "z-ns2",
-				},
-				{
-					Addr:      "example.org:12345",
-					Namespace: "z-ns2",
-				},
+	config := sc.String()
+
+	f, err := flbconfig.Parse("", config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedConfig := sinksToConfigAST(
+		t,
+		[]namespaceSink{
+			{
+				Name:      "some-name-3",
+				Addr:      "example.com:12345",
+				Namespace: "a-ns1",
+			},
+			{
+				Name:      "some-name-4",
+				Addr:      "example.com:12345",
+				Namespace: "default",
+			},
+			{
+				Name:      "some-name-1",
+				Addr:      "example.org:45678",
+				Namespace: "z-ns2",
+			},
+			{
+				Name:      "some-name-2",
+				Addr:      "example.org:12345",
+				Namespace: "z-ns2",
 			},
 		},
-		t,
+		[]clusterSink{},
 	)
+	if !cmp.Equal(f, expectedConfig) {
+		t.Fatal(cmp.Diff(f, expectedConfig))
+	}
 }
 
 func TestTlsEncoding(t *testing.T) {
-	sc := sink.NewConfig()
+	sc := sink.NewConfig("127.0.0.1:5000")
 	s1 := &v1alpha1.LogSink{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "some-name-1",
 			Namespace: "some-namespace",
 		},
 		Spec: v1alpha1.SinkSpec{
-			Type:      "syslog",
-			Host:      "example.com",
-			Port:      12345,
-			EnableTLS: true,
+			Type: "syslog",
+			SyslogSpec: v1alpha1.SyslogSpec{
+				Host:      "example.com",
+				Port:      12345,
+				EnableTLS: true,
+			},
 		},
 	}
 	s2 := &v1alpha1.ClusterLogSink{
@@ -559,35 +705,45 @@ func TestTlsEncoding(t *testing.T) {
 			Name: "some-name-2",
 		},
 		Spec: v1alpha1.SinkSpec{
-			Type:      "syslog",
-			Host:      "example.com",
-			Port:      12345,
-			EnableTLS: true,
+			Type: "syslog",
+			SyslogSpec: v1alpha1.SyslogSpec{
+				Host:      "example.com",
+				Port:      12345,
+				EnableTLS: true,
+			},
 		},
 	}
 
 	sc.UpsertSink(s1)
 	sc.UpsertClusterSink(s2)
 
-	expectConfig(
-		sc.String(),
-		ConfigComparer{
-			Name:  "syslog",
-			Match: "*",
-			NamespaceSinks: []NamespaceSink{
-				{
-					Addr:      "example.com:12345",
-					Namespace: "some-namespace",
-				},
-			},
-			ClusterSinks: []ClusterSink{
-				{
-					Addr: "example.com:12345",
-				},
+	config := sc.String()
+
+	f, err := flbconfig.Parse("", config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedConfig := sinksToConfigAST(
+		t,
+		[]namespaceSink{
+			{
+				Name:      "some-name-1",
+				Addr:      "example.com:12345",
+				Namespace: "some-namespace",
+				TLS:       &tlsConfig{},
 			},
 		},
-		t,
+		[]clusterSink{
+			{
+				Name: "some-name-2",
+				Addr: "example.com:12345",
+				TLS:  &tlsConfig{},
+			},
+		},
 	)
+	if !cmp.Equal(f, expectedConfig) {
+		t.Fatal(cmp.Diff(f, expectedConfig))
+	}
 
 	s1.Spec.InsecureSkipVerify = true
 	s2.Spec.InsecureSkipVerify = true
@@ -595,166 +751,575 @@ func TestTlsEncoding(t *testing.T) {
 	sc.UpsertSink(s1)
 	sc.UpsertClusterSink(s2)
 
-	expectConfig(
-		sc.String(),
-		ConfigComparer{
-			Name:  "syslog",
-			Match: "*",
-			NamespaceSinks: []NamespaceSink{
-				{
-					Addr:      "example.com:12345",
-					Namespace: "some-namespace",
-					TLS: TLSConfig{
-						InsecureSkipVerify: true,
-					},
-				},
-			},
-			ClusterSinks: []ClusterSink{
-				{
-					Addr: "example.com:12345",
-					TLS: TLSConfig{
-						InsecureSkipVerify: true,
-					},
+	config = sc.String()
+
+	f, err = flbconfig.Parse("", config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedConfig = sinksToConfigAST(
+		t,
+		[]namespaceSink{
+			{
+				Name:      "some-name-1",
+				Addr:      "example.com:12345",
+				Namespace: "some-namespace",
+				TLS: &tlsConfig{
+					InsecureSkipVerify: true,
 				},
 			},
 		},
-		t,
+		[]clusterSink{
+			{
+				Name: "some-name-2",
+				Addr: "example.com:12345",
+				TLS: &tlsConfig{
+					InsecureSkipVerify: true,
+				},
+			},
+		},
 	)
+	if !cmp.Equal(f, expectedConfig) {
+		t.Fatal(cmp.Diff(f, expectedConfig))
+	}
 }
 
 func TestEmptyNamespace(t *testing.T) {
-	sc := sink.NewConfig()
+	sc := sink.NewConfig("127.0.0.1:5000")
 	sink := &v1alpha1.LogSink{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "some-name",
 		},
 		Spec: v1alpha1.SinkSpec{
 			Type: "syslog",
-			Host: "example.com",
-			Port: 12345,
+			SyslogSpec: v1alpha1.SyslogSpec{
+				Host: "example.com",
+				Port: 12345,
+			},
 		},
 	}
 
 	sc.UpsertSink(sink)
 
-	expectConfig(
-		sc.String(),
-		ConfigComparer{
-			Name:  "syslog",
-			Match: "*",
-			NamespaceSinks: []NamespaceSink{
-				{
-					Addr:      "example.com:12345",
-					Namespace: "default",
-				},
+	config := sc.String()
+
+	f, err := flbconfig.Parse("", config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedConfig := sinksToConfigAST(
+		t,
+		[]namespaceSink{
+			{
+				Name:      "some-name",
+				Addr:      "example.com:12345",
+				Namespace: "default",
 			},
 		},
-		t,
+		[]clusterSink{},
 	)
+	if !cmp.Equal(f, expectedConfig) {
+		t.Fatal(cmp.Diff(f, expectedConfig))
+	}
 }
 
-type ConfigComparer struct {
-	Name           string
-	Match          string
-	ClusterSinks   []ClusterSink
-	NamespaceSinks []NamespaceSink
+func TestWebhookSinks(t *testing.T) {
+	testCases := map[string]struct {
+		logSinks        []*v1alpha1.LogSink
+		clusterLogSinks []*v1alpha1.ClusterLogSink
+		expectedConfig  flbconfig.File
+	}{
+		"namespaced with https": {
+			logSinks: []*v1alpha1.LogSink{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "some-name",
+						Namespace: "some-namespace",
+					},
+					Spec: v1alpha1.SinkSpec{
+						Type: "webhook",
+						WebhookSpec: v1alpha1.WebhookSpec{
+							URL: "https://example.com/some/path",
+						},
+					},
+				},
+			},
+			expectedConfig: sinksToConfigAST(
+				t,
+				[]namespaceSink{},
+				[]clusterSink{},
+				flbconfig.Section{
+					Name: "OUTPUT",
+					KeyValues: []flbconfig.KeyValue{
+						{
+							Key:   "Name",
+							Value: "http",
+						},
+						{
+							Key:   "Match",
+							Value: "*_some-namespace_*",
+						},
+						{
+							Key:   "Format",
+							Value: "json",
+						},
+						{
+							Key:   "Host",
+							Value: "example.com",
+						},
+						{
+							Key:   "Port",
+							Value: "443",
+						},
+						{
+							Key:   "URI",
+							Value: "/some/path",
+						},
+						{
+							Key:   "tls",
+							Value: "On",
+						},
+					},
+				},
+			),
+		},
+		"namespace with http URL": {
+			logSinks: []*v1alpha1.LogSink{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "some-name",
+						Namespace: "some-namespace",
+					},
+					Spec: v1alpha1.SinkSpec{
+						Type: "webhook",
+						WebhookSpec: v1alpha1.WebhookSpec{
+							URL: "http://example.com/some/path",
+						},
+					},
+				},
+			},
+			expectedConfig: sinksToConfigAST(
+				t,
+				[]namespaceSink{},
+				[]clusterSink{},
+				flbconfig.Section{
+					Name: "OUTPUT",
+					KeyValues: []flbconfig.KeyValue{
+						{
+							Key:   "Name",
+							Value: "http",
+						},
+						{
+							Key:   "Match",
+							Value: "*_some-namespace_*",
+						},
+						{
+							Key:   "Format",
+							Value: "json",
+						},
+						{
+							Key:   "Host",
+							Value: "example.com",
+						},
+						{
+							Key:   "Port",
+							Value: "80",
+						},
+						{
+							Key:   "URI",
+							Value: "/some/path",
+						},
+					},
+				},
+			),
+		},
+		"namespace with custom port": {
+			logSinks: []*v1alpha1.LogSink{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "some-name",
+						Namespace: "some-namespace",
+					},
+					Spec: v1alpha1.SinkSpec{
+						Type: "webhook",
+						WebhookSpec: v1alpha1.WebhookSpec{
+							URL: "http://example.com:12345/some/path",
+						},
+					},
+				},
+			},
+			expectedConfig: sinksToConfigAST(
+				t,
+				[]namespaceSink{},
+				[]clusterSink{},
+				flbconfig.Section{
+					Name: "OUTPUT",
+					KeyValues: []flbconfig.KeyValue{
+						{
+							Key:   "Name",
+							Value: "http",
+						},
+						{
+							Key:   "Match",
+							Value: "*_some-namespace_*",
+						},
+						{
+							Key:   "Format",
+							Value: "json",
+						},
+						{
+							Key:   "Host",
+							Value: "example.com",
+						},
+						{
+							Key:   "Port",
+							Value: "12345",
+						},
+						{
+							Key:   "URI",
+							Value: "/some/path",
+						},
+					},
+				},
+			),
+		},
+		"namespace with multiple": {
+			logSinks: []*v1alpha1.LogSink{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "some-name-1",
+						Namespace: "some-namespace-1",
+					},
+					Spec: v1alpha1.SinkSpec{
+						Type: "webhook",
+						WebhookSpec: v1alpha1.WebhookSpec{
+							URL: "http://example.com/some/path-1",
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "some-name-2",
+						Namespace: "some-namespace-2",
+					},
+					Spec: v1alpha1.SinkSpec{
+						Type: "webhook",
+						WebhookSpec: v1alpha1.WebhookSpec{
+							URL: "http://example.com/some/path-2",
+						},
+					},
+				},
+			},
+			expectedConfig: sinksToConfigAST(
+				t,
+				[]namespaceSink{},
+				[]clusterSink{},
+				flbconfig.Section{
+					Name: "OUTPUT",
+					KeyValues: []flbconfig.KeyValue{
+						{
+							Key:   "Name",
+							Value: "http",
+						},
+						{
+							Key:   "Match",
+							Value: "*_some-namespace-1_*",
+						},
+						{
+							Key:   "Format",
+							Value: "json",
+						},
+						{
+							Key:   "Host",
+							Value: "example.com",
+						},
+						{
+							Key:   "Port",
+							Value: "80",
+						},
+						{
+							Key:   "URI",
+							Value: "/some/path-1",
+						},
+					},
+				},
+				flbconfig.Section{
+					Name: "OUTPUT",
+					KeyValues: []flbconfig.KeyValue{
+						{
+							Key:   "Name",
+							Value: "http",
+						},
+						{
+							Key:   "Match",
+							Value: "*_some-namespace-2_*",
+						},
+						{
+							Key:   "Format",
+							Value: "json",
+						},
+						{
+							Key:   "Host",
+							Value: "example.com",
+						},
+						{
+							Key:   "Port",
+							Value: "80",
+						},
+						{
+							Key:   "URI",
+							Value: "/some/path-2",
+						},
+					},
+				},
+			),
+		},
+		"cluster sink": {
+			clusterLogSinks: []*v1alpha1.ClusterLogSink{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "some-name",
+					},
+					Spec: v1alpha1.SinkSpec{
+						Type: "webhook",
+						WebhookSpec: v1alpha1.WebhookSpec{
+							URL: "http://example.com/some/path",
+						},
+					},
+				},
+			},
+			expectedConfig: sinksToConfigAST(
+				t,
+				[]namespaceSink{},
+				[]clusterSink{},
+				flbconfig.Section{
+					Name: "OUTPUT",
+					KeyValues: []flbconfig.KeyValue{
+						{
+							Key:   "Name",
+							Value: "http",
+						},
+						{
+							Key:   "Match",
+							Value: "*",
+						},
+						{
+							Key:   "Format",
+							Value: "json",
+						},
+						{
+							Key:   "Host",
+							Value: "example.com",
+						},
+						{
+							Key:   "Port",
+							Value: "80",
+						},
+						{
+							Key:   "URI",
+							Value: "/some/path",
+						},
+					},
+				},
+			),
+		},
+		"ignore invalid URL": {
+			clusterLogSinks: []*v1alpha1.ClusterLogSink{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "some-name",
+					},
+					Spec: v1alpha1.SinkSpec{
+						Type: "webhook",
+						WebhookSpec: v1alpha1.WebhookSpec{
+							URL: ":@:@:@$",
+						},
+					},
+				},
+			},
+			expectedConfig: sinksToConfigAST(
+				t,
+				[]namespaceSink{},
+				[]clusterSink{},
+			),
+		},
+		"with URL that does not have a path": {
+			logSinks: []*v1alpha1.LogSink{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "some-name",
+						Namespace: "some-namespace",
+					},
+					Spec: v1alpha1.SinkSpec{
+						Type: "webhook",
+						WebhookSpec: v1alpha1.WebhookSpec{
+							URL: "https://example.com",
+						},
+					},
+				},
+			},
+			expectedConfig: sinksToConfigAST(
+				t,
+				[]namespaceSink{},
+				[]clusterSink{},
+				flbconfig.Section{
+					Name: "OUTPUT",
+					KeyValues: []flbconfig.KeyValue{
+						{
+							Key:   "Name",
+							Value: "http",
+						},
+						{
+							Key:   "Match",
+							Value: "*_some-namespace_*",
+						},
+						{
+							Key:   "Format",
+							Value: "json",
+						},
+						{
+							Key:   "Host",
+							Value: "example.com",
+						},
+						{
+							Key:   "Port",
+							Value: "443",
+						},
+						{
+							Key:   "URI",
+							Value: "/",
+						},
+						{
+							Key:   "tls",
+							Value: "On",
+						},
+					},
+				},
+			),
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			sc := sink.NewConfig("127.0.0.1:5000")
+
+			for _, s := range tc.logSinks {
+				sc.UpsertSink(s)
+			}
+			for _, s := range tc.clusterLogSinks {
+				sc.UpsertClusterSink(s)
+			}
+
+			config := sc.String()
+
+			f, err := flbconfig.Parse("", config)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !cmp.Equal(f, tc.expectedConfig, compareFLBConfig) {
+				t.Fatal(cmp.Diff(f, tc.expectedConfig))
+			}
+		})
+	}
 }
 
-type ClusterSink struct {
-	Addr string `json:"addr"`
-	TLS  TLSConfig
+type clusterSink struct {
+	Addr string     `json:"addr,omitempty"`
+	TLS  *tlsConfig `json:"tls,omitempty"`
+	Name string     `json:"name,omitempty"`
 }
 
-type NamespaceSink struct {
-	Addr      string `json:"addr"`
-	Namespace string `json:"namespace"`
-	TLS       TLSConfig
+type namespaceSink struct {
+	Addr      string     `json:"addr,omitempty"`
+	Namespace string     `json:"namespace,omitempty"`
+	TLS       *tlsConfig `json:"tls,omitempty"`
+	Name      string     `json:"name,omitempty"`
 }
 
-type TLSConfig struct {
-	InsecureSkipVerify bool `json:"insecure_skip_verify"`
+type tlsConfig struct {
+	InsecureSkipVerify bool `json:"insecure_skip_verify,omitempty"`
 }
 
-func expectConfig(conf string, compare ConfigComparer, t *testing.T) {
-	conf = strings.TrimSpace(conf)
-
-	trimmedConf := strings.TrimPrefix(conf, "[OUTPUT]\n")
-	if conf == trimmedConf {
-		t.Errorf("Expected conf to have output prefix")
+var compareFLBConfig = cmp.Comparer(func(x, y flbconfig.File) bool {
+	if x.Name != y.Name {
+		fmt.Println("file names do not match")
+		return false
+	}
+	if len(x.Sections) != len(y.Sections) {
+		fmt.Printf(
+			"section lengths differ: %d != %d\n",
+			len(x.Sections),
+			len(y.Sections),
+		)
+		return false
 	}
 
-	lines := strings.Split(trimmedConf, "\n")
-	props := make(map[string]string, len(lines))
-	for _, line := range lines {
-		kv := strings.Split(strings.TrimSpace(line), " ")
-		props[kv[0]] = kv[1]
+	ySections := make([]flbconfig.Section, len(y.Sections))
+	copy(ySections, y.Sections)
+
+outer:
+	for _, xs := range x.Sections {
+		for i, ys := range ySections {
+			if cmp.Equal(xs, ys) {
+				ySections = append(ySections[:i], ySections[i+1:]...)
+				continue outer
+			}
+		}
+		fmt.Printf("section was missing: %#v\n", xs)
+		return false
 	}
 
-	if len(compare.NamespaceSinks) != 0 {
-		actualString, ok := props["Sinks"]
-		if !ok {
-			t.Errorf("Expected Sinks to be present on config")
-		}
+	return true
+})
 
-		var actual []NamespaceSink
-		err := json.Unmarshal([]byte(actualString), &actual)
-		if err != nil {
-			t.Errorf("Could not Unmarshal namespace sink: %s", err)
-		}
-
-		if diff := cmp.Diff(compare.NamespaceSinks, actual); diff != "" {
-			t.Errorf("As (-want, +got) = %v", diff)
-		}
-	} else {
-		actual, ok := props["Sinks"]
-		if !ok {
-			t.Errorf("Expected Sinks to be present")
-		}
-		if actual != "[]" {
-			t.Errorf("Expected ClusterSinks to be empty")
-		}
+func sinksToConfigAST(
+	t *testing.T,
+	nsSinks []namespaceSink,
+	clSinks []clusterSink,
+	sections ...flbconfig.Section,
+) flbconfig.File {
+	nsSinksJSON, err := json.Marshal(nsSinks)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if len(compare.ClusterSinks) != 0 {
-		actualString, ok := props["ClusterSinks"]
-		if !ok {
-			t.Errorf("Expected ClusterSinks to be present on config")
-		}
-
-		var actual []ClusterSink
-		err := json.Unmarshal([]byte(actualString), &actual)
-		if err != nil {
-			t.Errorf("Could not Unmarshal cluster sink: %s", err)
-		}
-
-		if diff := cmp.Diff(compare.ClusterSinks, actual); diff != "" {
-			t.Errorf("As (-want, +got) = %v", diff)
-		}
-	} else {
-		actual, ok := props["ClusterSinks"]
-		if !ok {
-			t.Errorf("Expected ClusterSinks to be present")
-		}
-		if actual != "[]" {
-			t.Errorf("Expected ClusterSinks to be empty")
-		}
+	clSinksJSON, err := json.Marshal(clSinks)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	{
-		actualString, ok := props["Name"]
-		if !ok {
-			t.Errorf("Expected name to be present on config")
+	sections = append([]flbconfig.Section{{}}, sections...)
+
+	if len(nsSinks) > 0 || len(clSinks) > 0 {
+		section := flbconfig.Section{
+			Name: "OUTPUT",
+			KeyValues: []flbconfig.KeyValue{
+				{
+					Key:   "Name",
+					Value: "syslog",
+				},
+				{
+					Key:   "Match",
+					Value: "*",
+				},
+				{
+					Key:   "StatsAddr",
+					Value: "127.0.0.1:5000",
+				},
+				{
+					Key:   "Sinks",
+					Value: string(nsSinksJSON),
+				},
+				{
+					Key:   "ClusterSinks",
+					Value: string(clSinksJSON),
+				},
+			},
 		}
-		if actualString != compare.Name {
-			t.Errorf("Expected name to match config: Expected: %s Actual: %s", compare.Name, actualString)
-		}
+
+		sections = append(sections, section)
 	}
-	{
-		actualString, ok := props["Match"]
-		if !ok {
-			t.Errorf("Expected match to be present on config")
-		}
-		if actualString != compare.Match {
-			t.Errorf("Expected match to match config: Expected: %s Actual: %s", compare.Match, actualString)
-		}
+
+	return flbconfig.File{
+		Sections: sections,
 	}
 }
