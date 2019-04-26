@@ -19,14 +19,16 @@ metadata:
   name: fluent-bit
   namespace: knative-observability
   labels:
-    k8s-app: fluent-bit
+    logs: "true"
+    safeToDelete: "true"
+    app: fluent-bit
 data:
   # Configuration files: server, input, filters and output
   # ======================================================
   fluent-bit.conf: |
     [SERVICE]
         Flush         1
-        Log_Level     info
+        Log_Level     warning
         Daemon        off
         Parsers_File  parsers.conf
         HTTP_Server   On
@@ -43,6 +45,9 @@ data:
 
   filters.conf: |
     @INCLUDE filter-kubernetes.conf
+    @INCLUDE cluster-name-filter.conf
+
+  cluster-name-filter.conf: ""
 
   outputs.conf: |
     @INCLUDE output-null.conf

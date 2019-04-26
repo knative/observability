@@ -32,6 +32,10 @@ func (c *FakeObservabilityV1alpha1) ClusterLogSinks(namespace string) v1alpha1.C
 	return &FakeClusterLogSinks{c, namespace}
 }
 
+func (c *FakeObservabilityV1alpha1) ClusterMetricSinks(namespace string) v1alpha1.ClusterMetricSinkInterface {
+	return &FakeClusterMetricSinks{c, namespace}
+}
+
 func (c *FakeObservabilityV1alpha1) LogSinks(namespace string) v1alpha1.LogSinkInterface {
 	return &FakeLogSinks{c, namespace}
 }

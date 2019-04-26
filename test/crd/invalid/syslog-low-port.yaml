@@ -19,4 +19,4 @@ metadata:
 spec:
   type: syslog
   host: example.com
-  port: -1
+  port: 0

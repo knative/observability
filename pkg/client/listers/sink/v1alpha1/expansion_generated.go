@@ -26,6 +26,14 @@ type ClusterLogSinkListerExpansion interface{}
 // ClusterLogSinkNamespaceLister.
 type ClusterLogSinkNamespaceListerExpansion interface{}
 
+// ClusterMetricSinkListerExpansion allows custom methods to be added to
+// ClusterMetricSinkLister.
+type ClusterMetricSinkListerExpansion interface{}
+
+// ClusterMetricSinkNamespaceListerExpansion allows custom methods to be added to
+// ClusterMetricSinkNamespaceLister.
+type ClusterMetricSinkNamespaceListerExpansion interface{}
+
 // LogSinkListerExpansion allows custom methods to be added to
 // LogSinkLister.
 type LogSinkListerExpansion interface{}

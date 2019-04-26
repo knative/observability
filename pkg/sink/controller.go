@@ -89,7 +89,7 @@ func patchConfig(patches []patch, cmp ConfigMapPatcher, dsp DaemonSetPodDeleter)
 	err = dsp.DeleteCollection(
 		nil,
 		metav1.ListOptions{
-			LabelSelector: "app=fluent-bit-ds",
+			LabelSelector: "app=fluent-bit",
 		},
 	)
 	if err != nil {
@@ -99,7 +99,15 @@ func patchConfig(patches []patch, cmp ConfigMapPatcher, dsp DaemonSetPodDeleter)
 }
 
 func (c *Controller) OnUpdate(old, new interface{}) {
-	if !reflect.DeepEqual(old, new) {
+	o, ok := old.(*v1alpha1.LogSink)
+	if !ok {
+		return
+	}
+	n, ok := new.(*v1alpha1.LogSink)
+	if !ok {
+		return
+	}
+	if !reflect.DeepEqual(o.Spec, n.Spec) {
 		c.OnAdd(new)
 	}
 }

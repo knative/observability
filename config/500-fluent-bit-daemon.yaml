@@ -12,31 +12,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: fluent-bit
   namespace: knative-observability
   labels:
-    app: fluent-bit-ds
+    app: fluent-bit
     version: v1
+    logs: "true"
+    safeToDelete: "true"
 spec:
   updateStrategy:
     type: RollingUpdate
   selector:
     matchLabels:
-      app: fluent-bit-ds
+      app: fluent-bit
       version: v1
   template:
     metadata:
       labels:
-        app: fluent-bit-ds
+        app: fluent-bit
         version: v1
     spec:
       serviceAccountName: fluent-bit
       containers:
       - name: fluent-bit
-        image: oratos/fluent-bit-out-syslog:v0.9
+        image: oratos/fluent-bit-out-syslog:v0.16
         imagePullPolicy: IfNotPresent
         ports:
         - name: forward-plugin
@@ -66,6 +68,12 @@ spec:
         - name: varvcapdata
           mountPath: /var/vcap/data
           readOnly: true
+      - name: state-updater
+        image: github.com/knative/observability/cmd/sink-state-updater
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: SINK_STATE_URL
+          value: "http://localhost:5000"
       terminationGracePeriodSeconds: 10
       volumes:
       - name: varlog

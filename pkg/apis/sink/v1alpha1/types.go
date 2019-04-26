@@ -33,24 +33,36 @@ type LogSink struct {
 
 // SinkSpec is the spec for a Sink resource
 type SinkSpec struct {
-	Type               string `json:"type"`
+	Type string `json:"type"`
+
+	SyslogSpec  `json:",inline"`
+	WebhookSpec `json:",inline"`
+}
+
+type SyslogSpec struct {
 	Host               string `json:"host"`
 	Port               int    `json:"port"`
 	EnableTLS          bool   `json:"enable_tls"`
 	InsecureSkipVerify bool   `json:"insecure_skip_verify"`
 }
 
+type WebhookSpec struct {
+	URL string `json:"url"`
+}
+
 // SinkStatus is the status for a Sink resource
 type SinkStatus struct {
-	State   SinkState `json:"state,omitempty"`
-	Message string    `json:"message,omitempty"`
+	State              SinkState         `json:"state,omitempty"`
+	LastSuccessfulSend metav1.MicroTime  `json:"last_successful_send,omitempty"`
+	LastError          *string           `json:"last_error,omitempty"`
+	LastErrorTime      *metav1.MicroTime `json:"last_error_time,omitempty"`
 }
 
 type SinkState string
 
 const (
-	SinkStateCreated   SinkState = "Created"
-	SinkStateProcessed SinkState = "Processed"
+	SinkStateRunning SinkState = "Running"
+	SinkStateFailing SinkState = "Failing"
 )
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -83,4 +95,49 @@ type ClusterLogSinkList struct {
 	metav1.ListMeta `json:"metadata"`
 
 	Items []ClusterLogSink `json:"items"`
+}
+
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// ClusterMetricSink is a specification for a ClusterMetricSink resource
+type ClusterMetricSink struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata"`
+
+	Spec   MetricSinkSpec `json:"spec"`
+	Status SinkStatus     `json:"status,omitempty"`
+}
+
+// MetricSinkSpec is the spec for a Sink resource
+type MetricSinkSpec struct {
+	Inputs  []MetricSinkMap `json:"inputs"`
+	Outputs []MetricSinkMap `json:"outputs"`
+}
+
+// MetricSinkMap contains key/values that define inputs and outputs for a
+// MetricSink.
+type MetricSinkMap map[string]interface{}
+
+func (m MetricSinkMap) DeepCopy() MetricSinkMap {
+	newMap := make(MetricSinkMap, len(m))
+	for k, v := range m {
+		switch tv := v.(type) {
+		case string:
+			newMap[k] = tv
+		case int:
+			newMap[k] = tv
+		}
+	}
+	return newMap
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// ClusterMetricSinkList is a list of ClusterMetricSink resources
+type ClusterMetricSinkList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []ClusterMetricSink `json:"items"`
 }
