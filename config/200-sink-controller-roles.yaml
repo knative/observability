@@ -16,6 +16,9 @@ kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: sink-controller
+  labels:
+    logs: "true"
+    safeToDelete: "true"
 rules:
 # The sink-controller needs to patch the configmap for fluent-bit
 - apiGroups: [""] # "" indicates the core API group
@@ -29,3 +32,7 @@ rules:
 - apiGroups: ["observability.knative.dev"]
   resources: ["logsinks", "clusterlogsinks"]
   verbs: ["get", "list", "watch"]
+# The sink-controller looks for a label on the node for the hostname
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get", "list"]

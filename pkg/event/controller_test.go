@@ -17,6 +17,8 @@ package event_test
 
 import (
 	"errors"
+	"io/ioutil"
+	"log"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -26,6 +28,10 @@ import (
 	"github.com/knative/observability/pkg/event"
 )
 
+func init() {
+	log.SetOutput(ioutil.Discard)
+}
+
 func TestForwarding(t *testing.T) {
 	ResetForwarderMetrics()
 	spyFl := &spyFlogger{
@@ -34,12 +40,12 @@ func TestForwarding(t *testing.T) {
 	c := event.NewController(spyFl)
 	ev := &v1.Event{
 		InvolvedObject: v1.ObjectReference{
-			Name:      "some object name",
-			Namespace: "some namespace",
+			Name:      "some-object-name",
+			Namespace: "some-namespace",
 		},
 		Message: "some note with log data",
 		Source: v1.EventSource{
-			Host: "some host",
+			Host: "some-host",
 		},
 	}
 
@@ -47,9 +53,10 @@ func TestForwarding(t *testing.T) {
 		"log":    []byte("some note with log data"),
 		"stream": []byte("stdout"),
 		"kubernetes": map[string]interface{}{
-			"host":           []byte("some host"),
-			"pod_name":       []byte("some object name"),
-			"namespace_name": []byte("some namespace"),
+			"host":           []byte("some-host"),
+			"pod_name":       []byte("some-object-name"),
+			"namespace_name": []byte("some-namespace"),
+			"source_type":    []byte("k8s.event"),
 		},
 	}
 
@@ -58,8 +65,8 @@ func TestForwarding(t *testing.T) {
 	if diff := cmp.Diff(spyFl.receivedMsg, expected); diff != "" {
 		t.Errorf("Unexpected messages (-want +got): %v", diff)
 	}
-	if spyFl.tag != "k8s.event" {
-		t.Errorf("Expected tag to be k8s.event, was %s", spyFl.tag)
+	if spyFl.tag != "k8s.event._some-namespace_" {
+		t.Errorf("Expected tag to be k8s.event._some-namespace_, was %s", spyFl.tag)
 	}
 	if event.ForwarderSent.Value() != 1 {
 		t.Errorf("Expected events sent to be 1, was %d", event.ForwarderSent.Value())
@@ -96,6 +103,7 @@ func TestNonV1Event(t *testing.T) {
 	c := event.NewController(spyFl)
 
 	c.OnAdd("non-v1-event")
+
 	if spyFl.called {
 		t.Errorf("Expected not to call Flogger")
 	}
@@ -144,8 +152,8 @@ func TestEmptySource(t *testing.T) {
 	c := event.NewController(spyFl)
 	ev := &v1.Event{
 		InvolvedObject: v1.ObjectReference{
-			Name:      "some object name",
-			Namespace: "some namespace",
+			Name:      "some-object-name",
+			Namespace: "some-namespace",
 		},
 		Message: "some note with log data",
 	}
@@ -155,8 +163,9 @@ func TestEmptySource(t *testing.T) {
 		"stream": []byte("stdout"),
 		"kubernetes": map[string]interface{}{
 			"host":           []byte(""),
-			"pod_name":       []byte("some object name"),
-			"namespace_name": []byte("some namespace"),
+			"pod_name":       []byte("some-object-name"),
+			"namespace_name": []byte("some-namespace"),
+			"source_type":    []byte("k8s.event"),
 		},
 	}
 
@@ -165,8 +174,8 @@ func TestEmptySource(t *testing.T) {
 	if diff := cmp.Diff(spyFl.receivedMsg, expected); diff != "" {
 		t.Errorf("Unexpected messages (-want +got): %v", diff)
 	}
-	if spyFl.tag != "k8s.event" {
-		t.Errorf("Expected tag to be k8s.event, was %s", spyFl.tag)
+	if spyFl.tag != "k8s.event._some-namespace_" {
+		t.Errorf("Expected tag to be k8s.event._some-namespace_, was %s", spyFl.tag)
 	}
 }
 

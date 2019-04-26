@@ -1,0 +1,90 @@
+# Copyright 2018 The Knative Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: validator
+  namespace: knative-observability
+  labels:
+    app: validator
+    metrics: "true"
+    logs: "true"
+    safeToDelete: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: validator
+  template:
+    metadata:
+      labels:
+        app: validator
+    spec:
+      serviceAccountName: validator
+      initContainers:
+      - name: patch-ca
+        image: oratos/cert-generator:v0.20.0
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: CA_SECRET
+          value: observability-ca
+        - name: WEBHOOK_CONFIG
+          value: "validator.observability.knative.dev"
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -e
+          ca_cert=$(kubectl get secrets "$CA_SECRET" -o json | jq '.data."tls.crt"' --raw-output)
+
+          kubectl patch \
+            validatingwebhookconfiguration "$WEBHOOK_CONFIG" \
+            --type=json \
+            -p "[
+                  {\"op\": \"add\", \"path\": \"/webhooks/0/clientConfig/caBundle\", \"value\": \"$ca_cert\"},
+                  {\"op\": \"add\", \"path\": \"/webhooks/1/clientConfig/caBundle\", \"value\": \"$ca_cert\"},
+                ]"
+
+      containers:
+      - name: validator
+        # This is the Go import path for the binary that is containerized
+        # and substituted here.
+        image: oratos/validator:v0.20.0
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: validator-port
+          containerPort: 9000
+        readinessProbe:
+          httpGet:
+            scheme: HTTPS
+            port: validator-port
+            path: /health
+          initialDelaySeconds: 3
+          periodSeconds: 5
+        env:
+        - name: HTTP_ADDR
+          value: ":9000"
+        - name: VALIDATOR_CERT
+          value: /etc/validator-certs/tls.crt
+        - name: VALIDATOR_KEY
+          value: /etc/validator-certs/tls.key
+        volumeMounts:
+        - mountPath: /etc/validator-certs/
+          name: validator-certs
+          readOnly: true
+      volumes:
+      - name: validator-certs
+        secret:
+          secretName: validator

@@ -55,6 +55,8 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 	// Group=observability.knative.dev, Version=v1alpha1
 	case v1alpha1.SchemeGroupVersion.WithResource("clusterlogsinks"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Observability().V1alpha1().ClusterLogSinks().Informer()}, nil
+	case v1alpha1.SchemeGroupVersion.WithResource("clustermetricsinks"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Observability().V1alpha1().ClusterMetricSinks().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("logsinks"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Observability().V1alpha1().LogSinks().Informer()}, nil
 

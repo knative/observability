@@ -72,7 +72,15 @@ func (c *ClusterController) OnDelete(o interface{}) {
 }
 
 func (c *ClusterController) OnUpdate(old, new interface{}) {
-	if !reflect.DeepEqual(old, new) {
+	o, ok := old.(*v1alpha1.ClusterLogSink)
+	if !ok {
+		return
+	}
+	n, ok := new.(*v1alpha1.ClusterLogSink)
+	if !ok {
+		return
+	}
+	if !reflect.DeepEqual(o.Spec, n.Spec) {
 		c.OnAdd(new)
 	}
 }

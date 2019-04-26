@@ -22,7 +22,7 @@ import (
 	"net/http"
 	"time"
 
-	envstruct "code.cloudfoundry.org/go-envstruct"
+	"code.cloudfoundry.org/go-envstruct"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -52,7 +52,9 @@ func main() {
 		log.Fatal(err.Error())
 	}
 
-	go http.ListenAndServe(net.JoinHostPort("", conf.MetricsPort), http.DefaultServeMux)
+	go func() {
+		log.Fatal(http.ListenAndServe(net.JoinHostPort("", conf.MetricsPort), nil))
+	}()
 
 	cfg, err := rest.InClusterConfig()
 	if err != nil {
@@ -65,11 +67,17 @@ func main() {
 	}
 
 	f, err := fluent.New(fluent.Config{
-		FluentHost: conf.Host,
+		FluentHost:   conf.Host,
+		WriteTimeout: time.Millisecond * 500,
 	})
 	if err != nil {
 		log.Fatalf("unable to create fluent logger client: %s", err)
 	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			log.Fatalf("error closing fluent connection: %s\n", err)
+		}
+	}()
 
 	controller := event.NewController(f)
 

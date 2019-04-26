@@ -28,6 +28,7 @@ import (
 type ObservabilityV1alpha1Interface interface {
 	RESTClient() rest.Interface
 	ClusterLogSinksGetter
+	ClusterMetricSinksGetter
 	LogSinksGetter
 }
 
@@ -38,6 +39,10 @@ type ObservabilityV1alpha1Client struct {
 
 func (c *ObservabilityV1alpha1Client) ClusterLogSinks(namespace string) ClusterLogSinkInterface {
 	return newClusterLogSinks(c, namespace)
+}
+
+func (c *ObservabilityV1alpha1Client) ClusterMetricSinks(namespace string) ClusterMetricSinkInterface {
+	return newClusterMetricSinks(c, namespace)
 }
 
 func (c *ObservabilityV1alpha1Client) LogSinks(namespace string) LogSinkInterface {

@@ -75,8 +75,3 @@ var _ clientset.Interface = &Clientset{}
 func (c *Clientset) ObservabilityV1alpha1() observabilityv1alpha1.ObservabilityV1alpha1Interface {
 	return &fakeobservabilityv1alpha1.FakeObservabilityV1alpha1{Fake: &c.Fake}
 }
-
-// Observability retrieves the ObservabilityV1alpha1Client
-func (c *Clientset) Observability() observabilityv1alpha1.ObservabilityV1alpha1Interface {
-	return &fakeobservabilityv1alpha1.FakeObservabilityV1alpha1{Fake: &c.Fake}
-}

@@ -25,19 +25,23 @@ import (
 	informers "github.com/knative/observability/pkg/client/informers/externalversions"
 	"github.com/knative/observability/pkg/sink"
 	"github.com/knative/pkg/signals"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	coreV1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
 )
 
 type config struct {
-	Namespace string `env:"NAMESPACE,required,report"`
+	Namespace           string `env:"NAMESPACE,              required, report"`
+	SinkConfigStatsAddr string `env:"SINK_CONFIG_STATS_ADDR,           report"`
 }
 
 func main() {
 	flag.Parse()
 	stopCh := signals.SetupSignalHandler()
 
-	var conf config
+	conf := config{
+		SinkConfigStatsAddr: ":5000",
+	}
 	err := envstruct.Load(&conf)
 	if err != nil {
 		log.Fatal(err.Error())
@@ -62,8 +66,22 @@ func main() {
 		log.Fatal(err.Error())
 	}
 
-	sinkConfig := sink.NewConfig()
+	nodes, err := coreV1Client.Nodes().List(metav1.ListOptions{})
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+	if len(nodes.Items) <= 0 {
+		log.Fatal("cannot find any nodes")
+	}
+	hostOverride := nodes.Items[0].Labels["pks-system/cluster.name"]
 
+	sink.SetClusterNameFilter(
+		coreV1Client.ConfigMaps(conf.Namespace),
+		coreV1Client.Pods(conf.Namespace),
+		hostOverride,
+	)
+
+	sinkConfig := sink.NewConfig(conf.SinkConfigStatsAddr)
 	controller := sink.NewController(
 		coreV1Client.ConfigMaps(conf.Namespace),
 		coreV1Client.Pods(conf.Namespace),

@@ -28,8 +28,6 @@ import (
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
 	ObservabilityV1alpha1() observabilityv1alpha1.ObservabilityV1alpha1Interface
-	// Deprecated: please explicitly pick a version if possible.
-	Observability() observabilityv1alpha1.ObservabilityV1alpha1Interface
 }
 
 // Clientset contains the clients for groups. Each group has exactly one
@@ -41,12 +39,6 @@ type Clientset struct {
 
 // ObservabilityV1alpha1 retrieves the ObservabilityV1alpha1Client
 func (c *Clientset) ObservabilityV1alpha1() observabilityv1alpha1.ObservabilityV1alpha1Interface {
-	return c.observabilityV1alpha1
-}
-
-// Deprecated: Observability retrieves the default version of ObservabilityClient.
-// Please explicitly pick a version.
-func (c *Clientset) Observability() observabilityv1alpha1.ObservabilityV1alpha1Interface {
 	return c.observabilityV1alpha1
 }
 

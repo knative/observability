@@ -26,6 +26,8 @@ import (
 type Interface interface {
 	// ClusterLogSinks returns a ClusterLogSinkInformer.
 	ClusterLogSinks() ClusterLogSinkInformer
+	// ClusterMetricSinks returns a ClusterMetricSinkInformer.
+	ClusterMetricSinks() ClusterMetricSinkInformer
 	// LogSinks returns a LogSinkInformer.
 	LogSinks() LogSinkInformer
 }
@@ -44,6 +46,11 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 // ClusterLogSinks returns a ClusterLogSinkInformer.
 func (v *version) ClusterLogSinks() ClusterLogSinkInformer {
 	return &clusterLogSinkInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// ClusterMetricSinks returns a ClusterMetricSinkInformer.
+func (v *version) ClusterMetricSinks() ClusterMetricSinkInformer {
+	return &clusterMetricSinkInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // LogSinks returns a LogSinkInformer.
