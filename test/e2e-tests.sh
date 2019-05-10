@@ -27,31 +27,22 @@
 
 source "$(dirname "$0")/../vendor/github.com/knative/test-infra/scripts/e2e-tests.sh"
 
-function teardown() {
+function test_teardown() {
   ko delete --ignore-not-found=true -R -f test/ || true
   ko delete --ignore-not-found=true -f config/ || true
 }
 
+# Script entry point.
+
 initialize $@
 
-# Fail fast during setup.
-set -o errexit
-set -o pipefail
-
 header "Building and starting observability components"
-export KO_DOCKER_REPO="$DOCKER_REPO_OVERRIDE"
 ko apply -f config/ || fail_test
-
-# Handle test failures ourselves, so we can dump useful info.
-set +o errexit
-set +o pipefail
-
-# Make sure that are no builds or build templates in the current namespace.
 wait_until_pods_running knative-observability || fail_test
 
 # Run the tests
 header "Running CRD e2e tests"
-"$(dirname "$0")/crd/test.sh" || fail_test
+./test/crd/test.sh || fail_test
 
 header "Running Go e2e tests"
 go_test_e2e ./test/e2e/... || fail_test
