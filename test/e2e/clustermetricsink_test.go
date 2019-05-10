@@ -30,9 +30,8 @@ import (
 func TestClusterMetricSink(t *testing.T) {
 	var prefix = randomTestPrefix("cluster-metric-sink-")
 
-	logger := logging.GetContextLogger("TestClusterMetricSink")
-	clients, err := newClients()
-	assertErr(t, "Error creating newClients: %v", err)
+	clients, logger := initialize(t, "TestClusterMetricSink")
+	defer teardownNamespaces(clients, logger)
 
 	cleanup := createClusterMetricSink(t, logger, prefix, clients.sinkClient, observabilityTestNamespace)
 	defer cleanup()

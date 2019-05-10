@@ -1,6 +1,3 @@
-[submodule "vendor/github.com/knative/test-infra"]
-	path = vendor/github.com/knative/test-infra
-	url = https://github.com/knative/test-infra
 [submodule "vendor/k8s.io/code-generator"]
 	path = vendor/k8s.io/code-generator
 	url = https://github.com/kubernetes/code-generator

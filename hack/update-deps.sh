@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# Copyright 2018 The Knative Authors
+# Copyright 2019 The Knative Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,13 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This script runs the presubmit tests, in the right order.
-# It is started by prow for each PR.
-# For convenience, it can also be executed manually.
+set -o errexit
+set -o nounset
+set -o pipefail
 
-export GO111MODULE=on
-source $(dirname $0)/../vendor/github.com/knative/test-infra/scripts/presubmit-tests.sh
-
-# We use the default build, unit and integration test runners.
-
-main $@
+# GO111MODULE used so that it works no matter if someone has this repo
+# cloned under $GOPATH or not
+GO111MODULE=on go mod vendor

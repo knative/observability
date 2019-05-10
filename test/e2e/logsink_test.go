@@ -31,9 +31,8 @@ import (
 func TestSyslogLogSink(t *testing.T) {
 	var prefix = randomTestPrefix("syslog-log-sink-")
 
-	logger := logging.GetContextLogger("TestSyslogLogSink")
-	clients, err := newClients()
-	assertErr(t, "Error creating newClients: %v", err)
+	clients, logger := initialize(t, "TestSyslogLogSink")
+	defer teardownNamespaces(clients, logger)
 
 	cleanup := createSyslogLogSink(t, logger, prefix, clients.sinkClient, observabilityTestNamespace)
 	defer cleanup()
@@ -92,9 +91,8 @@ func XTestEventsLogSink(t *testing.T) {
 func TestWebhookLogSink(t *testing.T) {
 	var prefix = randomTestPrefix("webhook-log-sink-")
 
-	logger := logging.GetContextLogger("TestWebhookLogSink")
-	clients, err := newClients()
-	assertErr(t, "Error creating newClients: %v", err)
+	clients, logger := initialize(t, "TestWebhookLogSink")
+	defer teardownNamespaces(clients, logger)
 
 	logger.Infof("Test Prefix: %s", prefix)
 	cleanup := createWebhookLogSink(t, logger, prefix, clients.sinkClient, observabilityTestNamespace)
@@ -119,9 +117,8 @@ func TestWebhookLogSink(t *testing.T) {
 func TestCrosstalkLogSink(t *testing.T) {
 	var prefix = randomTestPrefix("test-crosstalk-logsink")
 
-	logger := logging.GetContextLogger("TestCrosstalkLogSink")
-	clients, err := newClients()
-	assertErr(t, "Error creating newClients: %v", err)
+	clients, logger := initialize(t, "TestCrosstalkLogSunk")
+	defer teardownNamespaces(clients, logger)
 
 	cleanup1 := createSyslogLogSink(t, logger, prefix, clients.sinkClient, observabilityTestNamespace)
 	defer cleanup1()

@@ -32,9 +32,8 @@ import (
 func TestSyslogClusterLogSink(t *testing.T) {
 	prefix := randomTestPrefix("cluster-syslog-log-sink-")
 
-	logger := logging.GetContextLogger("TestSyslogClusterLogSink")
-	clients, err := newClients()
-	assertErr(t, "Error creating newClients: %v", err)
+	clients, logger := initialize(t, "TestSyslogClusterLogSink")
+	defer teardownNamespaces(clients, logger)
 
 	logger.Infof("Test Prefix: %s", prefix)
 	cleanup := createClusterLogSink(t, logger, prefix, clients.sinkClient, observabilityTestNamespace)
@@ -63,9 +62,8 @@ func TestSyslogClusterLogSink(t *testing.T) {
 func XTestClusterEventsLogSink(t *testing.T) {
 	prefix := randomTestPrefix("cluster-event-log-sink-")
 
-	logger := logging.GetContextLogger("TestClusterEventsLogSink")
-	clients, err := newClients()
-	assertErr(t, "Error creating newClients: %v", err)
+	clients, logger := initialize(t, "TestClusterEventsLogSink")
+	defer teardownNamespaces(clients, logger)
 
 	logger.Infof("Test Prefix: %s", prefix)
 	cleanup := createClusterLogSink(t, logger, prefix, clients.sinkClient, observabilityTestNamespace)
@@ -93,9 +91,8 @@ func XTestClusterEventsLogSink(t *testing.T) {
 func TestClusterWebhookLogSink(t *testing.T) {
 	prefix := randomTestPrefix("cluster-webhook-log-sink-")
 
-	logger := logging.GetContextLogger("TestClusterWebhookLogSink")
-	clients, err := newClients()
-	assertErr(t, "Error creating newClients: %v", err)
+	clients, logger := initialize(t, "TestClusterWebhookLogSink")
+	defer teardownNamespaces(clients, logger)
 
 	cleanup := createClusterWebhookLogSink(t, logger, prefix, clients.sinkClient, observabilityTestNamespace)
 	defer cleanup()

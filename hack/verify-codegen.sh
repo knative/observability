@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright 2018 The Knative Authors
+# Copyright 2019 The Knative Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,36 +18,35 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-# Need to explicitly get these dependencies into our GOPATH/src in order for
-# code gen to work
-GO111MODULE=off go get k8s.io/code-generator/...
-GO111MODULE=off go get github.com/spf13/pflag
+source $(dirname $0)/../vendor/github.com/knative/test-infra/scripts/library.sh
 
-SCRIPT_ROOT=$(dirname "${BASH_SOURCE}")/..
-
-DIFFROOT="${SCRIPT_ROOT}/pkg"
-TMP_DIFFROOT="${SCRIPT_ROOT}/_tmp/pkg"
-_tmp="${SCRIPT_ROOT}/_tmp"
+readonly TMP_DIFFROOT="$(mktemp -d ${REPO_ROOT_DIR}/tmpdiffroot.XXXXXX)"
 
 cleanup() {
-  rm -rf "${_tmp}"
+  rm -rf "${TMP_DIFFROOT}"
 }
+
 trap "cleanup" EXIT SIGINT
 
 cleanup
 
-mkdir -p "${TMP_DIFFROOT}"
-cp -a "${DIFFROOT}"/* "${TMP_DIFFROOT}"
+# Save working tree state
+mkdir -p "${TMP_DIFFROOT}/vendor"
+cp -aR "${REPO_ROOT_DIR}/go.sum" "${REPO_ROOT_DIR}/vendor" "${TMP_DIFFROOT}"
 
-"${SCRIPT_ROOT}/hack/update-codegen.sh"
-echo "diffing ${DIFFROOT} against freshly generated codegen"
+"${REPO_ROOT_DIR}/hack/update-deps.sh"
+echo "Diffing ${REPO_ROOT_DIR} against freshly updated dependencies"
 ret=0
-diff -Naupr "${DIFFROOT}" "${TMP_DIFFROOT}" || ret=$?
-cp -a "${TMP_DIFFROOT}"/* "${DIFFROOT}"
+diff -Naupr --no-dereference "${REPO_ROOT_DIR}/vendor" "${TMP_DIFFROOT}/vendor" || ret=1
+
+# Restore working tree state
+rm -fr "${REPO_ROOT_DIR}/go.sum" "${REPO_ROOT_DIR}/vendor"
+cp -aR "${TMP_DIFFROOT}"/* "${REPO_ROOT_DIR}"
+
 if [[ $ret -eq 0 ]]
 then
-  echo "${DIFFROOT} up to date."
+  echo "${REPO_ROOT_DIR} up to date."
 else
-  echo "${DIFFROOT} is out of date. Please run hack/update-codegen.sh"
+  echo "ERROR: ${REPO_ROOT_DIR} is out of date. Please run ./hack/update-deps.sh"
   exit 1
 fi
