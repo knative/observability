@@ -30,6 +30,7 @@ type ObservabilityV1alpha1Interface interface {
 	ClusterLogSinksGetter
 	ClusterMetricSinksGetter
 	LogSinksGetter
+	MetricSinksGetter
 }
 
 // ObservabilityV1alpha1Client is used to interact with features provided by the observability.knative.dev group.
@@ -47,6 +48,10 @@ func (c *ObservabilityV1alpha1Client) ClusterMetricSinks(namespace string) Clust
 
 func (c *ObservabilityV1alpha1Client) LogSinks(namespace string) LogSinkInterface {
 	return newLogSinks(c, namespace)
+}
+
+func (c *ObservabilityV1alpha1Client) MetricSinks(namespace string) MetricSinkInterface {
+	return newMetricSinks(c, namespace)
 }
 
 // NewForConfig creates a new ObservabilityV1alpha1Client for the given config.

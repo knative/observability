@@ -18,6 +18,7 @@ webhooks:
           - UPDATE
         resources:
           - clustermetricsinks
+          - metricsinks
     failurePolicy: Fail
     clientConfig:
       service:

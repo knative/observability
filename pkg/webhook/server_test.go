@@ -413,23 +413,27 @@ func TestValidator(t *testing.T) {
 		})
 	})
 
-	t.Run("ClusterMetricSink", func(t *testing.T) {
-		t.Run("returns an allowed admission response", func(t *testing.T) {
-			requireTelegraf(t)
-			server := webhook.NewServer("127.0.0.1:0")
-			server.Run(false)
-			defer server.Close()
+	for ttype, template := range map[string]string{
+		"Cluster":   clusterMetricAdmissionTemplate,
+		"Namespace": metricAdmissionTemplate,
+	} {
+		t.Run(ttype+"_Metric_Sink", func(t *testing.T) {
+			t.Run("returns an allowed admission response", func(t *testing.T) {
+				requireTelegraf(t)
+				server := webhook.NewServer("127.0.0.1:0")
+				server.Run(false)
+				defer server.Close()
 
-			var (
-				err  error
-				resp *http.Response
-			)
-			for i := 0; i < 100; i++ {
-				resp, err = http.Post(
-					"http://"+server.Addr()+"/metricsink",
-					"application/json",
-					strings.NewReader(fmt.Sprintf(clusterMetricAdmissionTemplate,
-						`{
+				var (
+					err  error
+					resp *http.Response
+				)
+				for i := 0; i < 100; i++ {
+					resp, err = http.Post(
+						"http://"+server.Addr()+"/metricsink",
+						"application/json",
+						strings.NewReader(fmt.Sprintf(template,
+							`{
 							"inputs": [ {
 								"commands": [ "echo", "5" ],
 								"data_format": "value",
@@ -442,37 +446,37 @@ func TestValidator(t *testing.T) {
 								"type": "datadog"
 							} ]
 						}`)),
-				)
-				if err == nil {
-					break
+					)
+					if err == nil {
+						break
+					}
+					time.Sleep(5 * time.Millisecond)
 				}
-				time.Sleep(5 * time.Millisecond)
-			}
-			if err != nil {
-				t.Error(err)
-			}
-			if resp.StatusCode != http.StatusOK {
-				t.Errorf("expected http status 200, got %d", resp.StatusCode)
-			}
-			defer resp.Body.Close()
+				if err != nil {
+					t.Error(err)
+				}
+				if resp.StatusCode != http.StatusOK {
+					t.Errorf("expected http status 200, got %d", resp.StatusCode)
+				}
+				defer resp.Body.Close()
 
-			var actualResp v1beta1.AdmissionReview
-			err = json.NewDecoder(resp.Body).Decode(&actualResp)
-			if err != nil {
-				t.Errorf("unable to decode resp body: %s", err)
-			}
+				var actualResp v1beta1.AdmissionReview
+				err = json.NewDecoder(resp.Body).Decode(&actualResp)
+				if err != nil {
+					t.Errorf("unable to decode resp body: %s", err)
+				}
 
-			if !actualResp.Response.Allowed {
-				t.Errorf("expected response to be allowed, got false")
-			}
-		})
+				if !actualResp.Response.Allowed {
+					t.Errorf("expected response to be allowed, got false")
+				}
+			})
 
-		t.Run("returns a disallowed admission response for", func(t *testing.T) {
-			requireTelegraf(t)
-			tests := []invalidValidationTest{
-				{
-					"user specified kubernetes input",
-					`{
+			t.Run("returns a disallowed admission response for", func(t *testing.T) {
+				requireTelegraf(t)
+				tests := []invalidValidationTest{
+					{
+						"user specified kubernetes input",
+						`{
 						"inputs": [ {
 							"type": "kubernetes"
 						} ],
@@ -481,104 +485,120 @@ func TestValidator(t *testing.T) {
 							"type": "datadog"
 						} ]
 					}`,
-					"Kubernetes input plugin configured by default, cannot be added again",
-				},
-				{
-					"no input type",
-					`{
+						webhook.ConfigIncludesKubernetesError,
+					},
+					{
+						"no input type",
+						`{
 						"inputs": [ {
 						    "apikey": "apikey"
 						} ]
 					}`,
-					"Must specify type for each inputs/outputs",
-				},
-				{
-					"bad input type",
-					`{
+						webhook.ConfigMetricNoTypeError,
+					},
+					{
+						"bad input type",
+						`{
 						"inputs": [ {
 							"type": 123
 						} ]
 					}`,
-					"Input/output type must be a string",
-				},
-				{
-					"no output type",
-					`{
+						webhook.ConfigMetricNonStringTypeError,
+					},
+					{
+						"no output type",
+						`{
 						"outputs": [ {
 						    "apikey": "apikey"
 						} ]
 					}`,
-					"Must specify type for each inputs/outputs",
-				},
-				{
-					"bad output type",
-					`{
+						webhook.ConfigMetricNoTypeError,
+					},
+					{
+						"bad output type",
+						`{
 						"outputs": [ {
 							"type": 123
 						} ]
 					}`,
-					"Input/output type must be a string",
-				},
-				{
-					"invalid output",
-					`{
+						webhook.ConfigMetricNonStringTypeError,
+					},
+					{
+						"invalid output",
+						`{
+						"inputs": [ {
+							"type": "cpu"
+						} ],
+						"outputs": [ {
+							"type": "datadog",
+							"garbage": "datadog"
+						} ]
+					}`,
+						webhook.ConfigTelegrafError,
+					},
+				}
+				if ttype == "Namespace" {
+					tests = append(tests, invalidValidationTest{
+						"no input",
+						`{
 						"outputs": [{
 							"type": "datadog",
-							"garbage": "garbage"
+							"apikey": "apikey"
 						}]
 					}`,
-					"Failed to validate metricsink config",
-				},
-			}
-			server := webhook.NewServer("127.0.0.1:0")
-			server.Run(false)
-			defer server.Close()
+						webhook.ConfigMetricNoInputError,
+					})
+				}
+				server := webhook.NewServer("127.0.0.1:0")
+				server.Run(false)
+				defer server.Close()
 
-			for _, test := range tests {
-				t.Run(test.name, func(t *testing.T) {
-					var (
-						err  error
-						resp *http.Response
-					)
-					for i := 0; i < 100; i++ {
-						resp, err = http.Post(
-							"http://"+server.Addr()+"/metricsink",
-							"application/json",
-							strings.NewReader(fmt.Sprintf(clusterMetricAdmissionTemplate, test.specObject)),
+				for _, test := range tests {
+					t.Run(test.name, func(t *testing.T) {
+						var (
+							err  error
+							resp *http.Response
 						)
-						if err == nil {
-							break
+						for i := 0; i < 100; i++ {
+							resp, err = http.Post(
+								"http://"+server.Addr()+"/metricsink",
+								"application/json",
+								strings.NewReader(fmt.Sprintf(template, test.specObject)),
+							)
+							if err == nil {
+								break
+							}
+							time.Sleep(5 * time.Millisecond)
 						}
-						time.Sleep(5 * time.Millisecond)
-					}
-					if err != nil {
-						t.Error(err)
-					}
-					if resp.StatusCode != http.StatusOK {
-						t.Errorf("expected http status 200, got %d", resp.StatusCode)
-					}
-					defer resp.Body.Close()
+						if err != nil {
+							t.Error(err)
+						}
+						if resp.StatusCode != http.StatusOK {
+							t.Errorf("expected http status 200, got %d", resp.StatusCode)
+						}
+						defer resp.Body.Close()
 
-					var actualResp v1beta1.AdmissionReview
-					err = json.NewDecoder(resp.Body).Decode(&actualResp)
-					if err != nil {
-						t.Errorf("unable to decode resp body: %s", err)
-					}
+						var actualResp v1beta1.AdmissionReview
+						err = json.NewDecoder(resp.Body).Decode(&actualResp)
+						if err != nil {
+							t.Errorf("unable to decode resp body: %s", err)
+						}
 
-					expectedInvalidResponse := v1beta1.AdmissionReview{
-						Response: &v1beta1.AdmissionResponse{
-							Result: &metav1.Status{
-								Message: test.errorResponse,
+						expectedInvalidResponse := v1beta1.AdmissionReview{
+							Response: &v1beta1.AdmissionResponse{
+								Result: &metav1.Status{
+									Message: test.errorResponse,
+								},
 							},
-						},
-					}
-					if diff := cmp.Diff(expectedInvalidResponse, actualResp); diff != "" {
-						t.Errorf("As (-want, +got) = %v", diff)
-					}
-				})
-			}
+						}
+						if diff := cmp.Diff(expectedInvalidResponse, actualResp); diff != "" {
+							t.Errorf("As (-want, +got) = %v", diff)
+						}
+					})
+				}
+			})
 		})
-	})
+	}
 }
 
 var (
@@ -637,6 +657,7 @@ var (
 	clusterLogSinkAdmissionTemplate = fmt.Sprintf(admissionTemplate, "ClusterLogSink", "clusterlogsinks")
 	logSinkAdmissionTemplate        = fmt.Sprintf(admissionTemplate, "LogSink", "logsinks")
 	clusterMetricAdmissionTemplate  = fmt.Sprintf(admissionTemplate, "ClusterMetricSink", "clustermetricsinks")
+	metricAdmissionTemplate         = fmt.Sprintf(admissionTemplate, "MetricSink", "metricsinks")
 
 	logSinkUpdateAdmissionTemplate        = fmt.Sprintf(updateAdmissionTemplate, "LogSink", "logsinks")
 	clusterLogSinkUpdateAdmissionTemplate = fmt.Sprintf(updateAdmissionTemplate, "ClusterLogSink", "clusterlogsinks")

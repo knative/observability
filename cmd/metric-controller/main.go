@@ -26,7 +26,9 @@ import (
 	"github.com/knative/observability/pkg/metric"
 	"github.com/knative/pkg/signals"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 	coreV1 "k8s.io/client-go/kubernetes/typed/core/v1"
+
 	"k8s.io/client-go/rest"
 )
 
@@ -64,6 +66,11 @@ func main() {
 		log.Fatal(err.Error())
 	}
 
+	k8sClient, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
 	nodes, err := coreV1Client.Nodes().List(metav1.ListOptions{})
 	if err != nil {
 		log.Fatal(err.Error())
@@ -73,18 +80,29 @@ func main() {
 	}
 	clusterName := nodes.Items[0].Labels["pks-system/cluster.name"]
 
-	metricSinkConfig := metric.NewConfig(conf.UseInsecureKubernetesPort, clusterName)
+	metricSinkConfig := metric.NewConfig(clusterName, metric.KubernetesDefault(conf.UseInsecureKubernetesPort))
 
-	controller := metric.NewClusterController(
+	cmsController := metric.NewClusterController(
 		coreV1Client.ConfigMaps(conf.Namespace),
 		coreV1Client.Pods(conf.Namespace),
 		metricSinkConfig,
 	)
 
+	msController := metric.NewController(
+		clusterName,
+		coreV1Client,
+		k8sClient.AppsV1(),
+		k8sClient.RbacV1(),
+	)
+
 	sinkInformerFactory := informers.NewSharedInformerFactory(client, time.Second*30)
 
-	sinkInformer := sinkInformerFactory.Observability().V1alpha1().ClusterMetricSinks().Informer()
-	sinkInformer.AddEventHandler(controller)
+	cmsInformer := sinkInformerFactory.Observability().V1alpha1().ClusterMetricSinks().Informer()
+	cmsInformer.AddEventHandler(cmsController)
 
-	sinkInformer.Run(stopCh)
+	msInformer := sinkInformerFactory.Observability().V1alpha1().MetricSinks().Informer()
+	msInformer.AddEventHandler(msController)
+
+	go msInformer.Run(stopCh)
+	cmsInformer.Run(stopCh)
 }

@@ -59,6 +59,8 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Observability().V1alpha1().ClusterMetricSinks().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("logsinks"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Observability().V1alpha1().LogSinks().Informer()}, nil
+	case v1alpha1.SchemeGroupVersion.WithResource("metricsinks"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Observability().V1alpha1().MetricSinks().Informer()}, nil
 
 	}
 

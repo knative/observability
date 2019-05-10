@@ -21,17 +21,46 @@ import (
 	"reflect"
 
 	"github.com/knative/observability/pkg/apis/sink/v1alpha1"
+	coreV1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
 
+const (
+	// TODO: allow these to be configurable
+	ConfigMapName  = "telegraf"
+	DeploymentName = "telegraf"
+)
+
+type ConfigMapPatcher interface {
+	Patch(
+		name string,
+		pt types.PatchType,
+		data []byte,
+		subresources ...string,
+	) (*coreV1.ConfigMap, error)
+}
+
+type DaemonSetPodDeleter interface {
+	DeleteCollection(
+		options *metav1.DeleteOptions,
+		listOptions metav1.ListOptions,
+	) error
+}
+
+type patch struct {
+	Op    string `json:"op"`
+	Path  string `json:"path"`
+	Value string `json:"value"`
+}
+
 type ClusterController struct {
 	cmp ConfigMapPatcher
 	dpd DaemonSetPodDeleter
-	sc  *Config
+	sc  *ClusterConfig
 }
 
-func NewClusterController(cmp ConfigMapPatcher, dpd DaemonSetPodDeleter, sc *Config) *ClusterController {
+func NewClusterController(cmp ConfigMapPatcher, dpd DaemonSetPodDeleter, sc *ClusterConfig) *ClusterController {
 	return &ClusterController{
 		cmp: cmp,
 		dpd: dpd,

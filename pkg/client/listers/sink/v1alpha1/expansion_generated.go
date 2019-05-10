@@ -41,3 +41,11 @@ type LogSinkListerExpansion interface{}
 // LogSinkNamespaceListerExpansion allows custom methods to be added to
 // LogSinkNamespaceLister.
 type LogSinkNamespaceListerExpansion interface{}
+
+// MetricSinkListerExpansion allows custom methods to be added to
+// MetricSinkLister.
+type MetricSinkListerExpansion interface{}
+
+// MetricSinkNamespaceListerExpansion allows custom methods to be added to
+// MetricSinkNamespaceLister.
+type MetricSinkNamespaceListerExpansion interface{}

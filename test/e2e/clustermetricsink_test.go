@@ -33,13 +33,16 @@ func TestClusterMetricSink(t *testing.T) {
 	clients, logger := initialize(t, "TestClusterMetricSink")
 	defer teardownNamespaces(clients, logger)
 
+	logger.Infof("Test Prefix: %s", prefix)
 	cleanup := createClusterMetricSink(t, logger, prefix, clients.sinkClient, observabilityTestNamespace)
 	defer cleanup()
 
-	waitForTelegrafToBeReady(t, logger, prefix, clients.kubeClient)
+	waitForTelegrafToBeReady(t, logger, prefix, "telegraf", "knative-observability", clients.kubeClient)
 	assertTelegrafOutputtedData(
 		t,
 		logger,
+		"app=telegraf",
+		"knative-observability",
 		clients.kubeClient,
 		clients.restCfg,
 	)

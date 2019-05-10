@@ -268,7 +268,7 @@ func TestClusterSinkModification(t *testing.T) {
 			mapPatcher := &spyConfigMapPatcher{}
 			podDeleter := &spyDeploymentPodDeleter{}
 
-			c := metric.NewClusterController(mapPatcher, podDeleter, metric.NewConfig(false, ""))
+			c := metric.NewClusterController(mapPatcher, podDeleter, metric.NewConfig("", metric.KubernetesDefault(false)))
 			for i, spec := range test.specs {
 				d := &v1alpha1.ClusterMetricSink{
 					Spec: spec,
@@ -293,7 +293,7 @@ func TestClusterSinkModification(t *testing.T) {
 func TestNoopChange(t *testing.T) {
 	mapPatcher := &spyConfigMapPatcher{}
 	podDeleter := &spyDeploymentPodDeleter{}
-	c := metric.NewClusterController(mapPatcher, podDeleter, metric.NewConfig(false, ""))
+	c := metric.NewClusterController(mapPatcher, podDeleter, metric.NewConfig("", metric.KubernetesDefault(false)))
 
 	s1 := &v1alpha1.ClusterMetricSink{
 		Spec: v1alpha1.MetricSinkSpec{
@@ -339,7 +339,7 @@ func TestBadInputs(t *testing.T) {
 	c := metric.NewClusterController(
 		&spyConfigMapPatcher{},
 		&spyDeploymentPodDeleter{},
-		metric.NewConfig(false, ""),
+		metric.NewConfig("", metric.KubernetesDefault(false)),
 	)
 	//shouldn't panic
 	c.OnAdd("")

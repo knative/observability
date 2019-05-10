@@ -20,11 +20,12 @@ metadata:
     metrics: "true"
     safeToDelete: "true"
 rules:
-# The sink-controller needs to patch the configmap for fluent-bit
+# The metric-controller needs to CRUD the configmaps for telegraf for
+# namespaced and cluster metric sinks
 - apiGroups: [""] # "" indicates the core API group
   resources: ["configmaps"]
-  verbs: ["get", "list", "watch", "patch"] # TODO: Do we need watch?
-# The sink-controller needs to be able to delete the fluent-bit pods
+  verbs: ["get", "list", "watch", "patch", "create", "update", "delete"] # TODO: Do we need watch?
+# The metric-controller needs to be able to delete the telegraf pods
 - apiGroups: [""] # "" indicates the core API group
   resources: ["pods"]
   verbs: ["deletecollection"]
@@ -32,7 +33,24 @@ rules:
 - apiGroups: [""]
   resources: ["nodes"]
   verbs: ["get", "list"]
-# The sink-controller needs to be able to watch logsinks and clusterlogsinks
+# The metric-controller needs to be able to watch clustermetricsinks and
+# metricsinks
 - apiGroups: ["observability.knative.dev"]
-  resources: ["clustermetricsinks"]
+  resources: ["clustermetricsinks", "metricsinks"]
   verbs: ["get", "list", "watch"]
+# The metric-controller needs to be able to CRUD telegraf deployments for
+# namespaced metricsinks
+- apiGroups: ["extensions", "apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list", "watch", "patch", "create", "update", "delete"]
+# The metric-controller needs to be able to create and delete roles and
+# rolebindings for namespaced metric sinks
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["roles", "rolebindings"]
+  verbs: ["get", "list", "create", "delete"]
+# The metric-controller needs to be able to use pod security policies because
+# when it creates roles for namespaced metric sinks those roles require usage
+# of pod security policies.
+- apiGroups: ["extensions"]
+  resources: ["podsecuritypolicies"]
+  verbs: ["use"]
