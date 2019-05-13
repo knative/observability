@@ -1,10 +1,11 @@
 # Knative Observability
+
 This repo contains a set of in-progress resources designed
 to be a lightweight, extensible, and easy-to-understand set of
 tools for cluster admins and app developers to egress logs and metrics.
 
-
 ## Setup
+
 Clone the repository into your GOPATH
 
 ```
@@ -12,6 +13,7 @@ go get github.com/knative/observability
 ```
 
 ## Deploying the Sink Resources
+
 The sink resources can be used without Knative, the only pre-requisite is a
 cluster and [`ko`][ko] tool. To deploy simply run the following command from
 the `observability` repo directory.
@@ -21,6 +23,7 @@ KO_DOCKER_REPO=gcr.io/<GCP_PROJECT_ID>/<BUCKET> ko apply -Rf config
 ```
 
 ## Using the Log Sink with Knative
+
 Operators who for regulatory or security reasons want to monitor
 logs for every workload on the cluster can use the `clusterlogsink`.
 App developers will want to create a `logsink` for their namespace. To
