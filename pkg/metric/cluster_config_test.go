@@ -10,7 +10,7 @@ import (
 )
 
 func TestEmptyConfig(t *testing.T) {
-	config := metric.NewConfig(false, "").String()
+	config := metric.NewConfig("")
 
 	const expected = `[inputs]
 
@@ -20,17 +20,11 @@ func TestEmptyConfig(t *testing.T) {
 
   [[outputs.discard]]
 `
-	if config != expected {
-		t.Errorf(
-			"Config does not match:\nExpected: %s\nActual: %s",
-			expected,
-			config,
-		)
-	}
+	assertEquals(t, config, expected)
 }
 
 func TestSingleSink(t *testing.T) {
-	sc := metric.NewConfig(false, "")
+	sc := metric.NewConfig("", metric.KubernetesDefault(false))
 	sink := v1alpha1.ClusterMetricSink{
 		Spec: v1alpha1.MetricSinkSpec{
 			Inputs: []v1alpha1.MetricSinkMap{
@@ -75,18 +69,11 @@ func TestSingleSink(t *testing.T) {
     api_key = "some-key"
 `
 
-	config := sc.String()
-	if config != expected {
-		t.Errorf(
-			"Config does not match:\nExpected: %s\nActual: %s",
-			expected,
-			config,
-		)
-	}
+	assertEquals(t, sc, expected)
 }
 
 func TestClusterNameTag(t *testing.T) {
-	sc := metric.NewConfig(false, "cluster-name")
+	sc := metric.NewConfig("cluster-name", metric.KubernetesDefault(false))
 	sink := v1alpha1.ClusterMetricSink{
 		Spec: v1alpha1.MetricSinkSpec{
 			Inputs: []v1alpha1.MetricSinkMap{
@@ -134,18 +121,11 @@ func TestClusterNameTag(t *testing.T) {
     api_key = "some-key"
 `
 
-	config := sc.String()
-	if config != expected {
-		t.Errorf(
-			"Config does not match:\nExpected: %s\nActual: %s",
-			expected,
-			config,
-		)
-	}
+	assertEquals(t, sc, expected)
 }
 
 func TestMultipleSinks(t *testing.T) {
-	sc := metric.NewConfig(false, "")
+	sc := metric.NewConfig("", metric.KubernetesDefault(false))
 	sink1 := v1alpha1.ClusterMetricSink{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "cluster-metric-sink-a",
@@ -210,17 +190,10 @@ func TestMultipleSinks(t *testing.T) {
   [[outputs.influx]]
     api_key = "some-key-1"
 `
-	config := sc.String()
-	if config != expected {
-		t.Errorf(
-			"Config does not match:\nExpected: %s\nActual: %s",
-			expected,
-			config,
-		)
-	}
+	assertEquals(t, sc, expected)
 }
 func TestDeleteSink(t *testing.T) {
-	sc := metric.NewConfig(false, "")
+	sc := metric.NewConfig("", metric.KubernetesDefault(false))
 	sink := v1alpha1.ClusterMetricSink{
 		Spec: v1alpha1.MetricSinkSpec{
 			Outputs: []v1alpha1.MetricSinkMap{
@@ -244,18 +217,11 @@ func TestDeleteSink(t *testing.T) {
 
   [[outputs.discard]]
 `
-	config := sc.String()
-	if config != expected {
-		t.Errorf(
-			"Config does not match:\nExpected: %s\nActual: %s",
-			expected,
-			config,
-		)
-	}
+	assertEquals(t, sc, expected)
 }
 
 func TestMissingType(t *testing.T) {
-	sc := metric.NewConfig(false, "")
+	sc := metric.NewConfig("", metric.KubernetesDefault(false))
 	sink := v1alpha1.ClusterMetricSink{
 		Spec: v1alpha1.MetricSinkSpec{
 			Inputs: []v1alpha1.MetricSinkMap{
@@ -297,18 +263,11 @@ func TestMissingType(t *testing.T) {
     api_key = "some-key"
 `
 
-	config := sc.String()
-	if config != expected {
-		t.Errorf(
-			"Config does not match:\nExpected: %s\nActual: %s",
-			expected,
-			config,
-		)
-	}
+	assertEquals(t, sc, expected)
 }
 
 func TestInputOnlyConfig(t *testing.T) {
-	sc := metric.NewConfig(false, "")
+	sc := metric.NewConfig("", metric.KubernetesDefault(false))
 	sink := v1alpha1.ClusterMetricSink{
 		Spec: v1alpha1.MetricSinkSpec{
 			Inputs: []v1alpha1.MetricSinkMap{
@@ -331,18 +290,11 @@ func TestInputOnlyConfig(t *testing.T) {
 
   [[outputs.discard]]
 `
-	config := sc.String()
-	if config != expected {
-		t.Errorf(
-			"Config does not match:\nExpected: %s\nActual: %s",
-			expected,
-			config,
-		)
-	}
+	assertEquals(t, sc, expected)
 }
 
 func TestOutputOnlyConfig(t *testing.T) {
-	sc := metric.NewConfig(false, "")
+	sc := metric.NewConfig("", metric.KubernetesDefault(false))
 	sink := v1alpha1.ClusterMetricSink{
 		Spec: v1alpha1.MetricSinkSpec{
 			Outputs: []v1alpha1.MetricSinkMap{
@@ -368,18 +320,12 @@ func TestOutputOnlyConfig(t *testing.T) {
   [[outputs.datadog]]
     api_key = "some-key"
 `
-	config := sc.String()
-	if config != expected {
-		t.Errorf(
-			"Config does not match:\nExpected: %s\nActual: %s",
-			expected,
-			config,
-		)
-	}
+
+	assertEquals(t, sc, expected)
 }
 
 func TestUseInsecureKubernetesPortConfig(t *testing.T) {
-	sc := metric.NewConfig(true, "")
+	sc := metric.NewConfig("", metric.KubernetesDefault(true))
 	sink := v1alpha1.ClusterMetricSink{
 		Spec: v1alpha1.MetricSinkSpec{
 			Outputs: []v1alpha1.MetricSinkMap{
@@ -403,17 +349,41 @@ func TestUseInsecureKubernetesPortConfig(t *testing.T) {
   [[outputs.datadog]]
     api_key = "some-key"
 `
-	config := sc.String()
-	if config != expected {
-		t.Errorf(
-			"Config does not match:\nExpected: %s\nActual: %s",
-			expected,
-			config,
-		)
-	}
+	assertEquals(t, sc, expected)
 }
+
+func TestNoDefaultInput(t *testing.T) {
+	sc := metric.NewConfig("")
+	sink := v1alpha1.ClusterMetricSink{
+		Spec: v1alpha1.MetricSinkSpec{
+			Inputs: []v1alpha1.MetricSinkMap{
+				{
+					"type": "cpu",
+				},
+			},
+			Outputs: []v1alpha1.MetricSinkMap{
+				{
+					"type": "datadog",
+				},
+			},
+		},
+	}
+
+	sc.UpsertSink(sink)
+
+	const expected = `[inputs]
+
+  [[inputs.cpu]]
+
+[outputs]
+
+  [[outputs.datadog]]
+`
+	assertEquals(t, sc, expected)
+}
+
 func TestConcurrentAccess(t *testing.T) {
-	sc := metric.NewConfig(false, "")
+	sc := metric.NewConfig("", metric.KubernetesDefault(false))
 	wg := &sync.WaitGroup{}
 
 	const count = 100
@@ -434,4 +404,15 @@ func TestConcurrentAccess(t *testing.T) {
 	}
 
 	wg.Wait()
+}
+
+func assertEquals(t *testing.T, config *metric.ClusterConfig, expected string) {
+	actual := config.String()
+	if actual != expected {
+		t.Errorf(
+			"ClusterConfig does not match:\nExpected: %s\nActual: %s",
+			expected,
+			actual,
+		)
+	}
 }

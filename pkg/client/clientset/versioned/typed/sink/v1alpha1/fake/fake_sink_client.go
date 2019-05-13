@@ -40,6 +40,10 @@ func (c *FakeObservabilityV1alpha1) LogSinks(namespace string) v1alpha1.LogSinkI
 	return &FakeLogSinks{c, namespace}
 }
 
+func (c *FakeObservabilityV1alpha1) MetricSinks(namespace string) v1alpha1.MetricSinkInterface {
+	return &FakeMetricSinks{c, namespace}
+}
+
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
 func (c *FakeObservabilityV1alpha1) RESTClient() rest.Interface {

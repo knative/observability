@@ -23,3 +23,5 @@ type ClusterLogSinkExpansion interface{}
 type ClusterMetricSinkExpansion interface{}
 
 type LogSinkExpansion interface{}
+
+type MetricSinkExpansion interface{}

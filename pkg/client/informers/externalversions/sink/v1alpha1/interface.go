@@ -30,6 +30,8 @@ type Interface interface {
 	ClusterMetricSinks() ClusterMetricSinkInformer
 	// LogSinks returns a LogSinkInformer.
 	LogSinks() LogSinkInformer
+	// MetricSinks returns a MetricSinkInformer.
+	MetricSinks() MetricSinkInformer
 }
 
 type version struct {
@@ -56,4 +58,9 @@ func (v *version) ClusterMetricSinks() ClusterMetricSinkInformer {
 // LogSinks returns a LogSinkInformer.
 func (v *version) LogSinks() LogSinkInformer {
 	return &logSinkInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// MetricSinks returns a MetricSinkInformer.
+func (v *version) MetricSinks() MetricSinkInformer {
+	return &metricSinkInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }

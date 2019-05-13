@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
-	"errors"
 	"io/ioutil"
 	"log"
 	"net"
@@ -21,16 +20,17 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 )
 
-var (
-	errInvalidConfig             = errors.New("Failed to validate metricsink config")
-	errConfigIncludesKubernetes  = errors.New("Kubernetes input plugin configured by default, cannot be added again")
-	errConfigLogNoType           = errors.New("LogSink should have type")
-	errConfigLogChangeType       = errors.New("Changing sink type invalid")
-	errConfigSyslogBadPort       = errors.New("Port for syslog invalid, should be between 1 and 65535")
-	errConfigSyslogBadHost       = errors.New("Host for syslog invalid")
-	errConfigWebhookBadURL       = errors.New("URL for webhook invalid")
-	errConfigMetricNoType        = errors.New("Must specify type for each inputs/outputs")
-	errConfigMetricNonStringType = errors.New("Input/output type must be a string")
+const (
+	ConfigTelegrafError            = "Failed to validate metricsink config"
+	ConfigIncludesKubernetesError  = "Kubernetes input plugin added by default in ClusterMetricSink"
+	ConfigLogNoTypeError           = "LogSink should have type"
+	ConfigLogChangeTypeError       = "Changing sink type invalid"
+	ConfigSyslogBadPortError       = "Port for syslog invalid, should be between 1 and 65535"
+	ConfigSyslogBadHostError       = "Host for syslog invalid"
+	ConfigWebhookBadURLError       = "URL for webhook invalid"
+	ConfigMetricNoTypeError        = "Must specify type for each inputs/outputs"
+	ConfigMetricNonStringTypeError = "Input/output type must be a string"
+	ConfigMetricNoInputError       = "MetricSinks require at least one input"
 )
 
 type ServerOpt func(*Server)
@@ -106,9 +106,9 @@ func (s *Server) run() {
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle("/health", http.HandlerFunc(healthHandler))
-	mux.Handle("/metricsink", http.HandlerFunc(metricSinkHandler))
-	mux.Handle("/logsink", http.HandlerFunc(logSinkHandler))
+	mux.HandleFunc("/health", healthHandler)
+	mux.HandleFunc("/metricsink", metricSinkHandler)
+	mux.HandleFunc("/logsink", logSinkHandler)
 
 	s.mu.Lock()
 	s.lis = lis
@@ -132,7 +132,7 @@ func (s *Server) run() {
 var scheme = runtime.NewScheme()
 var codecs = serializer.NewCodecFactory(scheme)
 
-func healthHandler(w http.ResponseWriter, r *http.Request) {}
+func healthHandler(_ http.ResponseWriter, _ *http.Request) {}
 
 func metricSinkHandler(w http.ResponseWriter, r *http.Request) {
 	requestedAdmissionReview, httpErr := deserializeReview(r)
@@ -149,7 +149,7 @@ func metricSinkHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp, httpErr := validateMetricSinkConfig(*requestedAdmissionReview, cms)
-	if err != nil {
+	if httpErr != nil {
 		httpErr.Write(w)
 		return
 	}
@@ -160,10 +160,10 @@ func metricSinkHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func toAdmissionResponse(err error) *v1beta1.AdmissionResponse {
+func toAdmissionErrorResponse(err string) *v1beta1.AdmissionResponse {
 	return &v1beta1.AdmissionResponse{
 		Result: &metav1.Status{
-			Message: err.Error(),
+			Message: err,
 		},
 	}
 }
@@ -199,24 +199,24 @@ func validateLogSinkConfigRequest(rar *v1beta1.AdmissionReview) (*v1beta1.Admiss
 			return nil, errUnableToDeserialize
 		}
 		if clsOld.Spec.Type != cls.Spec.Type {
-			return toAdmissionResponse(errConfigLogChangeType), nil
+			return toAdmissionErrorResponse(ConfigLogChangeTypeError), nil
 		}
 	}
 
 	switch cls.Spec.Type {
 	case "syslog":
 		if cls.Spec.Host == "" {
-			return toAdmissionResponse(errConfigSyslogBadHost), nil
+			return toAdmissionErrorResponse(ConfigSyslogBadHostError), nil
 		}
 		if cls.Spec.Port > 65535 || cls.Spec.Port < 1 {
-			return toAdmissionResponse(errConfigSyslogBadPort), nil
+			return toAdmissionErrorResponse(ConfigSyslogBadPortError), nil
 		}
 	case "webhook":
 		if cls.Spec.URL == "" {
-			return toAdmissionResponse(errConfigWebhookBadURL), nil
+			return toAdmissionErrorResponse(ConfigWebhookBadURLError), nil
 		}
 	default:
-		return toAdmissionResponse(errConfigLogNoType), nil
+		return toAdmissionErrorResponse(ConfigLogNoTypeError), nil
 	}
 	return &v1beta1.AdmissionResponse{
 		UID:     rar.Request.UID,
@@ -232,28 +232,32 @@ func validateMetricSinkConfig(rar v1beta1.AdmissionReview, cms sink.ClusterMetri
 	for _, input := range cms.Spec.Inputs {
 		it, ok := input["type"]
 		if !ok {
-			return toAdmissionResponse(errConfigMetricNoType), nil
+			return toAdmissionErrorResponse(ConfigMetricNoTypeError), nil
 		}
 		if _, ok = it.(string); !ok {
-			return toAdmissionResponse(errConfigMetricNonStringType), nil
+			return toAdmissionErrorResponse(ConfigMetricNonStringTypeError), nil
 		}
 		if it == "kubernetes" {
-			return toAdmissionResponse(errConfigIncludesKubernetes), nil
+			return toAdmissionErrorResponse(ConfigIncludesKubernetesError), nil
 		}
 	}
 	for _, output := range cms.Spec.Outputs {
 		ot, ok := output["type"]
 		if !ok {
-			return toAdmissionResponse(errConfigMetricNoType), nil
+			return toAdmissionErrorResponse(ConfigMetricNoTypeError), nil
 		}
 		if _, ok := ot.(string); !ok {
-			return toAdmissionResponse(errConfigMetricNonStringType), nil
+			return toAdmissionErrorResponse(ConfigMetricNonStringTypeError), nil
 		}
 	}
 
-	// Which version of default inputs irelevent to validation at time of
+	if cms.Kind == "MetricSink" && len(cms.Spec.Inputs) == 0 {
+		return toAdmissionErrorResponse(ConfigMetricNoInputError), nil
+	}
+
+	// Which version of default inputs irrelevant to validation at time of
 	// commit.
-	cfg := metric.NewConfig(false, "")
+	cfg := metric.NewConfig("", metric.KubernetesDefault(false))
 	cfg.UpsertSink(cms)
 	err := ioutil.WriteFile("/tmp/telegraf.conf", []byte(cfg.String()), 0644)
 	if err != nil {
@@ -263,7 +267,7 @@ func validateMetricSinkConfig(rar v1beta1.AdmissionReview, cms sink.ClusterMetri
 	cmd := exec.Command("telegraf", "--config", "/tmp/telegraf.conf", "--test")
 	err = cmd.Run()
 	if err != nil {
-		return toAdmissionResponse(errInvalidConfig), nil
+		return toAdmissionErrorResponse(ConfigTelegrafError), nil
 	}
 
 	return &v1beta1.AdmissionResponse{
@@ -282,7 +286,11 @@ func deserializeReview(r *http.Request) (*v1beta1.AdmissionReview, *httpError) {
 	if err != nil {
 		return nil, errUnableToReadBody
 	}
-	defer r.Body.Close()
+	defer func() {
+		if err := r.Body.Close(); err != nil {
+			log.Printf("Error closing body: %v\n", err)
+		}
+	}()
 
 	requestedAdmissionReview := v1beta1.AdmissionReview{}
 

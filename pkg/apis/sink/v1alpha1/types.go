@@ -109,6 +109,18 @@ type ClusterMetricSink struct {
 	Status SinkStatus     `json:"status,omitempty"`
 }
 
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// MetricSink is a specification for a MetricSink resource
+type MetricSink struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata"`
+
+	Spec   MetricSinkSpec `json:"spec"`
+	Status SinkStatus     `json:"status,omitempty"`
+}
+
 // MetricSinkSpec is the spec for a Sink resource
 type MetricSinkSpec struct {
 	Inputs  []MetricSinkMap `json:"inputs"`
@@ -140,4 +152,14 @@ type ClusterMetricSinkList struct {
 	metav1.ListMeta `json:"metadata"`
 
 	Items []ClusterMetricSink `json:"items"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// MetricSinkList is a list of MetricSink resources
+type MetricSinkList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []MetricSink `json:"items"`
 }

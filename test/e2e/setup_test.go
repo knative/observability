@@ -496,6 +496,8 @@ func waitForTelegrafToBeReady(
 	t *testing.T,
 	logger *logging.BaseLogger,
 	prefix string,
+	label string,
+	namespace string,
 	kc *test.KubeClient,
 ) {
 	logger.Info("Giving metric-sink-controller time to delete telegraf pods")
@@ -504,7 +506,7 @@ func waitForTelegrafToBeReady(
 	logger.Info("Waiting for all telegraf pods to be ready")
 	telegrafState := func(ps *corev1.PodList) (bool, error) {
 		for _, p := range ps.Items {
-			if p.Labels["app"] == "telegraf" && ready(p) {
+			if p.Labels["app"] == label && ready(p) {
 				return true, nil
 			}
 		}
@@ -514,7 +516,7 @@ func waitForTelegrafToBeReady(
 		kc,
 		telegrafState,
 		prefix+"telegraf",
-		"knative-observability",
+		namespace,
 	)
 	assertErr(t, "Error waiting for telegraf to be ready: %v", err)
 }
@@ -566,13 +568,14 @@ func ready(p corev1.Pod) bool {
 func getPodName(
 	t *testing.T,
 	kc *test.KubeClient,
+	namespace string,
 	podLabel string,
 ) string {
 
-	podList, err := kc.Kube.CoreV1().Pods("knative-observability").List(metav1.ListOptions{
+	podList, err := kc.Kube.CoreV1().Pods(namespace).List(metav1.ListOptions{
 		LabelSelector: podLabel,
 	})
-	assertErr(t, "Failed to get telegraf pod", err)
+	assertErr(t, "Failed to get pod", err)
 
 	for _, p := range podList.Items {
 		if ready(p) {
@@ -595,6 +598,8 @@ type ValueField struct {
 func assertTelegrafOutputtedData(
 	t *testing.T,
 	logger *logging.BaseLogger,
+	label string,
+	namespace string,
 	kc *test.KubeClient,
 	restCfg *rest.Config,
 ) {
@@ -602,7 +607,7 @@ func assertTelegrafOutputtedData(
 	waitTime := 20
 	for timeWaited := 0; waitTime >= timeWaited; timeWaited++ {
 		logger.Infof("Checking output of telegraf")
-		err = checkTelegrafOutputtedData(t, logger, kc, restCfg)
+		err = checkTelegrafOutputtedData(t, label, namespace, kc, restCfg)
 		if err == nil {
 			return
 		}
@@ -613,18 +618,19 @@ func assertTelegrafOutputtedData(
 
 func checkTelegrafOutputtedData(
 	t *testing.T,
-	logger *logging.BaseLogger,
+	label string,
+	namespace string,
 	kc *test.KubeClient,
 	restCfg *rest.Config,
 ) error {
-	podName := getPodName(t, kc, "app=telegraf")
+	podName := getPodName(t, kc, namespace, label)
 	req := kc.Kube.
 		CoreV1().
 		RESTClient().
 		Post().
 		Resource("pods").
 		Name(podName).
-		Namespace("knative-observability").
+		Namespace(namespace).
 		SubResource("exec").
 		VersionedParams(&corev1.PodExecOptions{
 			Container: "telegraf",

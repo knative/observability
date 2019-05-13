@@ -45,6 +45,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&LogSink{},
 		&LogSinkList{},
+		&MetricSink{},
+		&MetricSinkList{},
 		&ClusterLogSink{},
 		&ClusterLogSinkList{},
 		&ClusterMetricSink{},
