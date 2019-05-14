@@ -90,7 +90,7 @@ func randString(n int) string {
 
 // initialize is responsible for setting up and tearing down the testing environment,
 // namely the test namespace.
-func initialize(t *testing.T, name string) (*clients, *logging.BaseLogger) {
+func initialize(t *testing.T) (*clients, *logging.BaseLogger) {
 	flag.Parse()
 	logging.InitializeLogger(test.Flags.LogVerbose)
 	logger := logging.GetContextLogger("TestSetup")
@@ -103,7 +103,7 @@ func initialize(t *testing.T, name string) (*clients, *logging.BaseLogger) {
 	test.CleanupOnInterrupt(func() {
 		teardownNamespaces(clients, logger)
 	}, logger)
-        return clients, logging.GetContextLogger(name)
+	return clients, logging.GetContextLogger(t.Name())
 }
 
 type spdyDialer struct {

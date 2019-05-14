@@ -32,7 +32,7 @@ import (
 func TestSyslogClusterLogSink(t *testing.T) {
 	prefix := randomTestPrefix("cluster-syslog-log-sink-")
 
-	clients, logger := initialize(t, "TestSyslogClusterLogSink")
+	clients, logger := initialize(t)
 	defer teardownNamespaces(clients, logger)
 
 	logger.Infof("Test Prefix: %s", prefix)
@@ -62,7 +62,7 @@ func TestSyslogClusterLogSink(t *testing.T) {
 func XTestClusterEventsLogSink(t *testing.T) {
 	prefix := randomTestPrefix("cluster-event-log-sink-")
 
-	clients, logger := initialize(t, "TestClusterEventsLogSink")
+	clients, logger := initialize(t)
 	defer teardownNamespaces(clients, logger)
 
 	logger.Infof("Test Prefix: %s", prefix)
@@ -91,7 +91,7 @@ func XTestClusterEventsLogSink(t *testing.T) {
 func TestClusterWebhookLogSink(t *testing.T) {
 	prefix := randomTestPrefix("cluster-webhook-log-sink-")
 
-	clients, logger := initialize(t, "TestClusterWebhookLogSink")
+	clients, logger := initialize(t)
 	defer teardownNamespaces(clients, logger)
 
 	cleanup := createClusterWebhookLogSink(t, logger, prefix, clients.sinkClient, observabilityTestNamespace)

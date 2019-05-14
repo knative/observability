@@ -36,7 +36,7 @@ func TestMetricSink(t *testing.T) {
 	t.Run("creates a metric sink in the specified namespace", func(t *testing.T) {
 		var prefix = randomTestPrefix("metric-sink-")
 
-		clients, logger := initialize(t, "TestMetricSink")
+		clients, logger := initialize(t)
 		defer teardownNamespaces(clients, logger)
 
 		logger.Infof("Test Prefix: %s", prefix)
