@@ -31,7 +31,7 @@ import (
 func TestSyslogLogSink(t *testing.T) {
 	var prefix = randomTestPrefix("syslog-log-sink-")
 
-	clients, logger := initialize(t, "TestSyslogLogSink")
+	clients, logger := initialize(t)
 	defer teardownNamespaces(clients, logger)
 
 	cleanup := createSyslogLogSink(t, logger, prefix, clients.sinkClient, observabilityTestNamespace)
@@ -91,7 +91,7 @@ func XTestEventsLogSink(t *testing.T) {
 func TestWebhookLogSink(t *testing.T) {
 	var prefix = randomTestPrefix("webhook-log-sink-")
 
-	clients, logger := initialize(t, "TestWebhookLogSink")
+	clients, logger := initialize(t)
 	defer teardownNamespaces(clients, logger)
 
 	logger.Infof("Test Prefix: %s", prefix)
@@ -117,7 +117,7 @@ func TestWebhookLogSink(t *testing.T) {
 func TestCrosstalkLogSink(t *testing.T) {
 	var prefix = randomTestPrefix("test-crosstalk-logsink")
 
-	clients, logger := initialize(t, "TestCrosstalkLogSunk")
+	clients, logger := initialize(t)
 	defer teardownNamespaces(clients, logger)
 
 	cleanup1 := createSyslogLogSink(t, logger, prefix, clients.sinkClient, observabilityTestNamespace)

@@ -30,7 +30,7 @@ import (
 func TestClusterMetricSink(t *testing.T) {
 	var prefix = randomTestPrefix("cluster-metric-sink-")
 
-	clients, logger := initialize(t, "TestClusterMetricSink")
+	clients, logger := initialize(t)
 	defer teardownNamespaces(clients, logger)
 
 	logger.Infof("Test Prefix: %s", prefix)
