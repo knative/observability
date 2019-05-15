@@ -13,10 +13,18 @@
 # limitations under the License.
 
 apiVersion: v1
-kind: Namespace
+kind: Service
 metadata:
-  name: knative-observability
+  name: node-exporter
+  namespace: knative-observability
   labels:
-    logs: "true"
-    metrics: "true"
     nodeExporter: "true"
+    safeToDelete: "true"
+spec:
+  selector:
+    app: node-exporter
+  ports:
+    - protocol: TCP
+      port: 10536
+      targetPort: 9100
+  type: ClusterIP
