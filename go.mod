@@ -19,7 +19,7 @@ require (
 	github.com/imdario/mergo v0.3.6 // indirect
 	github.com/json-iterator/go v1.1.5 // indirect
 	github.com/knative/pkg v0.0.0-20181214184433-b04c0947ad2f
-	github.com/knative/test-infra v0.0.0-20190509234238-51f0bf3fa414
+	github.com/knative/test-infra v0.0.0-20190518032526-1576da300696
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.1 // indirect
 	github.com/onsi/ginkgo v1.7.0 // indirect
