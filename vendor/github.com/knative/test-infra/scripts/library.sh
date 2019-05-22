@@ -22,12 +22,6 @@
 readonly SERVING_GKE_VERSION=gke-latest
 readonly SERVING_GKE_IMAGE=cos
 
-# Public latest stable nightly images and yaml files.
-readonly KNATIVE_BASE_YAML_SOURCE=https://storage.googleapis.com/knative-nightly/@/latest
-readonly KNATIVE_SERVING_RELEASE=${KNATIVE_BASE_YAML_SOURCE/@/serving}/serving.yaml
-readonly KNATIVE_BUILD_RELEASE=${KNATIVE_BASE_YAML_SOURCE/@/build}/build.yaml
-readonly KNATIVE_EVENTING_RELEASE=${KNATIVE_BASE_YAML_SOURCE/@/eventing}/release.yaml
-
 # Conveniently set GOPATH if unset
 if [[ -z "${GOPATH:-}" ]]; then
   export GOPATH="$(go env GOPATH)"
@@ -41,6 +35,20 @@ fi
 readonly IS_PROW
 readonly REPO_ROOT_DIR="$(git rev-parse --show-toplevel)"
 readonly REPO_NAME="$(basename ${REPO_ROOT_DIR})"
+
+# Useful flags about the current OS
+IS_LINUX=0
+IS_OSX=0
+IS_WINDOWS=0
+case "${OSTYPE}" in
+  darwin*) IS_OSX=1 ;;
+  linux*) IS_LINUX=1 ;;
+  msys*) IS_WINDOWS=1 ;;
+  *) echo "** Internal error in library.sh, unknown OS '${OSTYPE}'" ; exit 1 ;;
+esac
+readonly IS_LINUX
+readonly IS_OSX
+readonly IS_WINDOWS
 
 # Set ARTIFACTS to an empty temp dir if unset
 if [[ -z "${ARTIFACTS:-}" ]]; then
@@ -62,7 +70,7 @@ function abort() {
 #             $2 - banner message.
 function make_banner() {
     local msg="$1$1$1$1 $2 $1$1$1$1"
-    local border="${msg//[-0-9A-Za-z _.,\/()]/$1}"
+    local border="${msg//[-0-9A-Za-z _.,\/()\']/$1}"
     echo -e "${border}\n${msg}\n${border}"
 }
 
@@ -448,8 +456,31 @@ function get_canonical_path() {
   echo "$(cd ${path%/*} && echo $PWD/${path##*/})"
 }
 
+# Return the base url we use to build the actual knative yaml sources.
+function get_knative_base_yaml_source() {
+  local knative_base_yaml_source="https://storage.googleapis.com/knative-nightly/@/latest"
+  local branch_name=""
+  # Get the branch name from Prow's env var, see https://github.com/kubernetes/test-infra/blob/master/prow/jobs.md.
+  # Otherwise, try getting the current branch from git.
+  (( IS_PROW )) && branch_name="${PULL_BASE_REF:-}"
+  [[ -z "${branch_name}" ]] && branch_name="$(git rev-parse --abbrev-ref HEAD)"
+  # If it's a release branch, base URL should point to a specific version.
+  if [[ ${branch_name} =~ ^release-[0-9\.]+$ ]]; then
+    # Get the latest tag name for the current branch, which is likely formatted as v0.5.0
+    local tag_name="$(git describe --tags --abbrev=0)"
+    knative_base_yaml_source="https://storage.googleapis.com/knative-releases/@/previous/${tag_name}"
+  fi
+  echo "${knative_base_yaml_source}"
+}
+
 # Initializations that depend on previous functions.
 # These MUST come last.
 
 readonly _TEST_INFRA_SCRIPTS_DIR="$(dirname $(get_canonical_path ${BASH_SOURCE[0]}))"
 readonly REPO_NAME_FORMATTED="Knative $(capitalize ${REPO_NAME//-/})"
+
+# Public latest nightly or release yaml files.
+readonly KNATIVE_BASE_YAML_SOURCE="$(get_knative_base_yaml_source)"
+readonly KNATIVE_SERVING_RELEASE="${KNATIVE_BASE_YAML_SOURCE/@/serving}/serving.yaml"
+readonly KNATIVE_BUILD_RELEASE="${KNATIVE_BASE_YAML_SOURCE/@/build}/build.yaml"
+readonly KNATIVE_EVENTING_RELEASE="${KNATIVE_BASE_YAML_SOURCE/@/eventing}/release.yaml"
