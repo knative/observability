@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"os/exec"
+	"strings"
 	"sync"
 	"time"
 
@@ -27,7 +28,9 @@ const (
 	ConfigLogChangeTypeError       = "Changing sink type invalid"
 	ConfigSyslogBadPortError       = "Port for syslog invalid, should be between 1 and 65535"
 	ConfigSyslogBadHostError       = "Host for syslog invalid"
+	ConfigSyslogInsecureError      = "Insecure syslog sink not allowed"
 	ConfigWebhookBadURLError       = "URL for webhook invalid"
+	ConfigWebhookInsecureError     = "Insecure webhook not allowed, scheme must be https"
 	ConfigMetricNoTypeError        = "Must specify type for each inputs/outputs"
 	ConfigMetricNonStringTypeError = "Input/output type must be a string"
 	ConfigMetricNoInputError       = "MetricSinks require at least one input"
@@ -205,6 +208,9 @@ func validateLogSinkConfigRequest(rar *v1beta1.AdmissionReview) (*v1beta1.Admiss
 
 	switch cls.Spec.Type {
 	case "syslog":
+		if cls.Spec.EnableTLS != true {
+			return toAdmissionErrorResponse(ConfigSyslogInsecureError), nil
+		}
 		if cls.Spec.Host == "" {
 			return toAdmissionErrorResponse(ConfigSyslogBadHostError), nil
 		}
@@ -214,6 +220,9 @@ func validateLogSinkConfigRequest(rar *v1beta1.AdmissionReview) (*v1beta1.Admiss
 	case "webhook":
 		if cls.Spec.URL == "" {
 			return toAdmissionErrorResponse(ConfigWebhookBadURLError), nil
+		}
+		if !strings.HasPrefix(cls.Spec.URL, "https://") {
+			return toAdmissionErrorResponse(ConfigWebhookInsecureError), nil
 		}
 	default:
 		return toAdmissionErrorResponse(ConfigLogNoTypeError), nil

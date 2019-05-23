@@ -177,7 +177,8 @@ func TestValidator(t *testing.T) {
 					`{
 						"type": "syslog",
 						"host": "example.com",
-						"port": 100
+						"port": 100,
+						"enable_tls": true
 					}`,
 				},
 				{
@@ -241,7 +242,8 @@ func TestValidator(t *testing.T) {
 					"no type",
 					`{
 						"host": "example.com",
-						"port": 0
+						"port": 0,
+						"enable_tls": true
 					}`,
 					"LogSink should have type",
 				},
@@ -250,7 +252,8 @@ func TestValidator(t *testing.T) {
 					`{
 						"type": "syslog",
 						"host": "example.com",
-						"port": 100000
+						"port": 100000,
+						"enable_tls": true
 					}`,
 					"Port for syslog invalid, should be between 1 and 65535",
 				},
@@ -259,7 +262,8 @@ func TestValidator(t *testing.T) {
 					`{
 						"type": "syslog",
 						"host": "example.com",
-						"port": 0
+						"port": 0,
+						"enable_tls": true
 					}`,
 					"Port for syslog invalid, should be between 1 and 65535",
 				},
@@ -267,7 +271,8 @@ func TestValidator(t *testing.T) {
 					"no port",
 					`{
 						"type": "syslog",
-						"host": "example.com"
+						"host": "example.com",
+						"enable_tls": true
 					}`,
 					"Port for syslog invalid, should be between 1 and 65535",
 				},
@@ -275,7 +280,8 @@ func TestValidator(t *testing.T) {
 					"no host",
 					`{
 						"type": "syslog",
-						"port": 0
+						"port": 0,
+						"enable_tls": true
 					}`,
 					"Host for syslog invalid",
 				},
@@ -294,6 +300,23 @@ func TestValidator(t *testing.T) {
 						"port": 5678
 					}`,
 					"URL for webhook invalid",
+				},
+				{
+					"insecure syslog",
+					`{
+						"type": "syslog",
+						"host": "example.com",
+						"port": 5678
+					}`,
+					"Insecure syslog sink not allowed",
+				},
+				{
+					"insecure webhook",
+					`{
+						"type": "webhook",
+						"url": "http://webhook.com"
+					}`,
+					"Insecure webhook not allowed, scheme must be https",
 				},
 			}
 			server := webhook.NewServer("127.0.0.1:0")
