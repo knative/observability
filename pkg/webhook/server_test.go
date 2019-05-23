@@ -280,7 +280,7 @@ func TestValidator(t *testing.T) {
 					"no host",
 					`{
 						"type": "syslog",
-						"port": 0,
+						"port": 1,
 						"enable_tls": true
 					}`,
 					"Host for syslog invalid",

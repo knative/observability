@@ -208,7 +208,7 @@ func validateLogSinkConfigRequest(rar *v1beta1.AdmissionReview) (*v1beta1.Admiss
 
 	switch cls.Spec.Type {
 	case "syslog":
-		if cls.Spec.EnableTLS != true {
+		if !cls.Spec.EnableTLS {
 			return toAdmissionErrorResponse(ConfigSyslogInsecureError), nil
 		}
 		if cls.Spec.Host == "" {
