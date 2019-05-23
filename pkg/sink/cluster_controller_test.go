@@ -57,7 +57,7 @@ func TestClusterSinkModification(t *testing.T) {
 			"Add a single TLS sink with insecure skip verify set",
 			[]string{"add"},
 			[]v1alpha1.SinkSpec{
-				{Type: "syslog", SyslogSpec: v1alpha1.SyslogSpec{Host: "example.com", Port: 12345, EnableTLS: true, InsecureSkipVerify: true}},
+				{Type: "syslog", SyslogSpec: v1alpha1.SyslogSpec{Host: "example.com", Port: 12345, EnableTLS: true}, InsecureSkipVerify: true},
 			},
 			[]string{
 				"\n[OUTPUT]\n    Name syslog\n    Match *\n    StatsAddr 127.0.0.1:5000\n    Sinks []\n    ClusterSinks [{\"addr\":\"example.com:12345\",\"tls\":{\"insecure_skip_verify\":true},\"name\":\"sink-example.com\"}]\n",

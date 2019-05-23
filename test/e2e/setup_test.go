@@ -435,7 +435,7 @@ func createSyslogReceiver(
 			ServiceAccountName: serviceAccountName,
 			Containers: []corev1.Container{{
 				Name:            syslogReceiverSuffix,
-				Image:           "oratos/crosstalk-receiver:v0.5",
+				Image:           "oratos/crosstalk-receiver:v0.6",
 				ImagePullPolicy: corev1.PullAlways,
 				Ports: []corev1.ContainerPort{
 					{

@@ -883,6 +883,65 @@ func TestWebhookSinks(t *testing.T) {
 				},
 			),
 		},
+		"namespaced with https and skip cert verify": {
+			logSinks: []*v1alpha1.LogSink{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "some-name",
+						Namespace: "some-namespace",
+					},
+					Spec: v1alpha1.SinkSpec{
+						Type: "webhook",
+						WebhookSpec: v1alpha1.WebhookSpec{
+							URL: "https://example.com/some/path",
+						},
+						InsecureSkipVerify: true,
+					},
+				},
+			},
+			expectedConfig: sinksToConfigAST(
+				t,
+				[]namespaceSink{},
+				[]clusterSink{},
+				flbconfig.Section{
+					Name: "OUTPUT",
+					KeyValues: []flbconfig.KeyValue{
+						{
+							Key:   "Name",
+							Value: "http",
+						},
+						{
+							Key:   "Match",
+							Value: "*_some-namespace_*",
+						},
+						{
+							Key:   "Format",
+							Value: "json",
+						},
+						{
+							Key:   "Host",
+							Value: "example.com",
+						},
+						{
+							Key:   "Port",
+							Value: "443",
+						},
+						{
+							Key:   "URI",
+							Value: "/some/path",
+						},
+						{
+							Key:   "tls",
+							Value: "On",
+						},
+						{
+							Key:   "tls.verify",
+							Value: "Off",
+						},
+					},
+				},
+			),
+		},
 		"namespace with http URL": {
 			logSinks: []*v1alpha1.LogSink{
 				{

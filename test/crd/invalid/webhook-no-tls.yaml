@@ -15,8 +15,7 @@
 apiVersion: observability.knative.dev/v1alpha1
 kind: LogSink
 metadata:
-  name: invalid-no-drain-type
+  name: invalid-webhook-no-tls
 spec:
-  host: example.com
-  port: 12345
-  enable_tls: true
+  type: webhook
+  url: http://example.com/test

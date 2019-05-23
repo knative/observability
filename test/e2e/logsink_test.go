@@ -177,9 +177,11 @@ func createSyslogLogSink(
 		Spec: v1alpha1.SinkSpec{
 			Type: "syslog",
 			SyslogSpec: v1alpha1.SyslogSpec{
-				Host: prefix + syslogReceiverSuffix + "." + namespace,
-				Port: 24903,
+				Host:      prefix + syslogReceiverSuffix + "." + namespace,
+				Port:      24903,
+				EnableTLS: true,
 			},
+			InsecureSkipVerify: true,
 		},
 	})
 	assertErr(t, "Error creating syslog LogSink: %v", err)
@@ -205,8 +207,9 @@ func createWebhookLogSink(
 		Spec: v1alpha1.SinkSpec{
 			Type: "webhook",
 			WebhookSpec: v1alpha1.WebhookSpec{
-				URL: "http://" + prefix + syslogReceiverSuffix + "." + namespace + ":7070/webhook",
+				URL: "https://" + prefix + syslogReceiverSuffix + "." + namespace + ":7070/webhook",
 			},
+			InsecureSkipVerify: true,
 		},
 	})
 	assertErr(t, "Error creating webhook LogSink: %v", err)

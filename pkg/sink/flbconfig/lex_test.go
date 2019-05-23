@@ -132,6 +132,7 @@ keyA2 valA2
 [sectionB]
 keyB1 valB1
 keyB2 valB2
+keyB1.subkey valB1s
 
 `,
 			expectedTokens: []flbconfig.Token{
@@ -222,6 +223,18 @@ keyB2 valB2
 				{
 					Type:  flbconfig.TokenValue,
 					Value: "valB2",
+				},
+				{
+					Type:  flbconfig.TokenNewLine,
+					Value: "\n",
+				},
+				{
+					Type:  flbconfig.TokenKey,
+					Value: "keyB1.subkey",
+				},
+				{
+					Type:  flbconfig.TokenValue,
+					Value: "valB1s",
 				},
 				{
 					Type:  flbconfig.TokenNewLine,

@@ -15,9 +15,8 @@
 apiVersion: observability.knative.dev/v1alpha1
 kind: LogSink
 metadata:
-  name: valid-syslog-tls
+  name: invalid-syslog-no-tls
 spec:
   type: syslog
   host: example.com
   port: 12345
-  enable_tls: true
