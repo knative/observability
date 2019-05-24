@@ -21,11 +21,10 @@ set -o pipefail
 SCRIPT_ROOT=$(dirname ${BASH_SOURCE})/..
 
 export GO111MODULE=off
-git submodule update --init --recursive
 
 CODEGEN_PKG=${CODEGEN_PKG:-$(cd ${SCRIPT_ROOT}; ls -d -1 ./vendor/k8s.io/code-generator)}
 
-${CODEGEN_PKG}/generate-groups.sh "deepcopy,client,informer,lister" \
+bash ${CODEGEN_PKG}/generate-groups.sh "deepcopy,client,informer,lister" \
   github.com/knative/observability/pkg/client github.com/knative/observability/pkg/apis \
   sink:v1alpha1 \
   --go-header-file ${SCRIPT_ROOT}/hack/boilerplate/boilerplate.go.txt

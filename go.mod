@@ -12,7 +12,6 @@ require (
 	github.com/gogo/protobuf v1.2.0 // indirect
 	github.com/golang/groupcache v0.0.0-20181024230925-c65c006176ff // indirect
 	github.com/google/go-cmp v0.3.0
-	github.com/google/gofuzz v0.0.0-20170612174753-24818f796faf // indirect
 	github.com/google/licenseclassifier v0.0.0-20190501212618-47b603fe1b8c // indirect
 	github.com/googleapis/gnostic v0.2.0 // indirect
 	github.com/gregjones/httpcache v0.0.0-20181110185634-c63ab54fda8f // indirect
@@ -20,11 +19,8 @@ require (
 	github.com/json-iterator/go v1.1.5 // indirect
 	github.com/knative/pkg v0.0.0-20181214184433-b04c0947ad2f
 	github.com/knative/test-infra v0.0.0-20190518032526-1576da300696
-	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
-	github.com/modern-go/reflect2 v1.0.1 // indirect
 	github.com/onsi/ginkgo v1.7.0 // indirect
 	github.com/onsi/gomega v1.4.3 // indirect
-	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/philhofer/fwd v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.3 // indirect
 	github.com/stretchr/objx v0.2.0 // indirect
@@ -33,12 +29,9 @@ require (
 	go.uber.org/atomic v1.3.2 // indirect
 	go.uber.org/multierr v1.1.0 // indirect
 	go.uber.org/zap v1.9.1 // indirect
-	k8s.io/api v0.0.0-20181130031204-d04500c8c3dd
-	k8s.io/apimachinery v0.0.0-20181227073029-9c4c36654334
-	k8s.io/client-go v10.0.0+incompatible
-	k8s.io/klog v0.3.0 // indirect
-	k8s.io/kube-openapi v0.0.0-20181114233023-0317810137be // indirect
-	sigs.k8s.io/yaml v1.1.0 // indirect
+	k8s.io/api v0.0.0-20190515023547-db5a9d1c40eb
+	k8s.io/apimachinery v0.0.0-20190515023456-b74e4c97951f
+	k8s.io/client-go v0.0.0-20190515063710-7b18d6600f6b
+	k8s.io/code-generator v0.0.0-20190511023357-639c964206c2
+	k8s.io/utils v0.0.0-20190520173318-324c5df7d3f0 // indirect
 )
-
-exclude k8s.io/code-generator v0.0.0-20190419212335-ff26e7842f9d

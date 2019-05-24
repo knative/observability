@@ -99,7 +99,7 @@ func (sc *Config) webhookConfig() string {
 			continue
 		}
 
-		config += buildHTTPConfig(s.Namespace, s.Spec.URL, false)
+		config += buildHTTPConfig(s.Namespace, s.Spec, false)
 	}
 
 	for _, s := range sc.clusterSinks {
@@ -107,7 +107,7 @@ func (sc *Config) webhookConfig() string {
 			continue
 		}
 
-		config += buildHTTPConfig("", s.Spec.URL, true)
+		config += buildHTTPConfig("", s.Spec, true)
 	}
 
 	return config
@@ -198,8 +198,8 @@ type tls struct {
 	InsecureSkipVerify bool `json:"insecure_skip_verify,omitempty"`
 }
 
-func buildHTTPConfig(namespace, URL string, isCluster bool) string {
-	url, err := url.Parse(URL)
+func buildHTTPConfig(namespace string, spec v1alpha1.SinkSpec, isCluster bool) string {
+	url, err := url.Parse(spec.URL)
 	if err != nil {
 		return ""
 	}
@@ -219,7 +219,11 @@ func buildHTTPConfig(namespace, URL string, isCluster bool) string {
 
 	var extras string
 	if url.Scheme == "https" {
-		extras = "tls On"
+		extras = "tls On\n"
+
+		if spec.InsecureSkipVerify {
+			extras += "tls.verify Off\n"
+		}
 	}
 
 	match := fmt.Sprintf("*_%s_*", namespace)

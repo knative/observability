@@ -19,3 +19,4 @@ metadata:
 spec:
   type: syslog
   port: 12345
+  enable_tls: true

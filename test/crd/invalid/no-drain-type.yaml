@@ -19,3 +19,4 @@ metadata:
 spec:
   host: example.com
   port: 12345
+  enable_tls: true

@@ -130,8 +130,10 @@ func createClusterLogSink(
 		Spec: v1alpha1.SinkSpec{
 			Type: "syslog",
 			SyslogSpec: v1alpha1.SyslogSpec{
-				Host: prefix + "syslog-receiver." + observabilityTestNamespace,
-				Port: 24903,
+				Host:               prefix + "syslog-receiver." + observabilityTestNamespace,
+				Port:               24903,
+				EnableTLS:          true,
+				InsecureSkipVerify: true,
 			},
 		},
 	})
@@ -158,7 +160,7 @@ func createClusterWebhookLogSink(
 		Spec: v1alpha1.SinkSpec{
 			Type: "webhook",
 			WebhookSpec: v1alpha1.WebhookSpec{
-				URL: "http://" + prefix + "syslog-receiver." + observabilityTestNamespace + ":7070/webhook",
+				URL: "https://" + prefix + "syslog-receiver." + observabilityTestNamespace + ":7070/webhook",
 			},
 		},
 	})
