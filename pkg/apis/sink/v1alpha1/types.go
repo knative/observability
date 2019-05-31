@@ -27,8 +27,7 @@ type LogSink struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   SinkSpec   `json:"spec"`
-	Status SinkStatus `json:"status,omitempty"`
+	Spec SinkSpec `json:"spec"`
 }
 
 // SinkSpec is the spec for a Sink resource
@@ -83,8 +82,7 @@ type ClusterLogSink struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   SinkSpec   `json:"spec"`
-	Status SinkStatus `json:"status,omitempty"`
+	Spec SinkSpec `json:"spec"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
