@@ -33,12 +33,13 @@ require (
 	go.uber.org/atomic v1.3.2 // indirect
 	go.uber.org/multierr v1.1.0 // indirect
 	go.uber.org/zap v1.9.1 // indirect
+	google.golang.org/appengine v1.4.0 // indirect
 	k8s.io/api v0.0.0-20181130031204-d04500c8c3dd
 	k8s.io/apimachinery v0.0.0-20181227073029-9c4c36654334
 	k8s.io/client-go v10.0.0+incompatible
-	k8s.io/klog v0.3.0 // indirect
+	k8s.io/code-generator v0.0.0-20190404150254-edcfb81a444e // indirect
+	k8s.io/gengo v0.0.0-20190116091435-f8a0810f38af // indirect
+	k8s.io/klog v0.3.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20181114233023-0317810137be // indirect
 	sigs.k8s.io/yaml v1.1.0 // indirect
 )
-
-exclude k8s.io/code-generator v0.0.0-20190419212335-ff26e7842f9d
