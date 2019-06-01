@@ -97,9 +97,9 @@ go.uber.org/zap/internal/bufferpool
 go.uber.org/zap/buffer
 go.uber.org/zap/internal/color
 go.uber.org/zap/internal/exit
-# golang.org/x/crypto v0.0.0-20181030102418-4d3f4d9ffa16
+# golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2
 golang.org/x/crypto/ssh/terminal
-# golang.org/x/net v0.0.0-20190213061140-3a22650c66bd
+# golang.org/x/net v0.0.0-20190311183353-d8887717615a
 golang.org/x/net/http2
 golang.org/x/net/http/httpguts
 golang.org/x/net/http2/hpack
@@ -112,7 +112,7 @@ golang.org/x/oauth2/internal
 golang.org/x/oauth2/google
 golang.org/x/oauth2/jws
 golang.org/x/oauth2/jwt
-# golang.org/x/sys v0.0.0-20181218192612-074acd46bca6
+# golang.org/x/sys v0.0.0-20190312061237-fead79001313
 golang.org/x/sys/unix
 golang.org/x/sys/windows
 # golang.org/x/text v0.3.1-0.20180807135948-17ff2d5776d2

@@ -18,14 +18,51 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-SCRIPT_ROOT=$(dirname ${BASH_SOURCE})/..
+SCRIPT_ROOT=$(realpath $(dirname ${BASH_SOURCE})/..)
 
-export GO111MODULE=off
-git submodule update --init --recursive
+export GO111MODULE=on
 
-CODEGEN_PKG=${CODEGEN_PKG:-$(cd ${SCRIPT_ROOT}; ls -d -1 ./vendor/k8s.io/code-generator)}
+# XXX: code-generator doesn't place nice with go modoules yet. So we need to
+# setup a GOPATH with the code-generator. After the code-generator gets a
+# chance to run in the new/temp GOPATH, we'll have to move the result into the
+# current directory.
+temp_dir=$(mktemp -d)
 
-${CODEGEN_PKG}/generate-groups.sh "deepcopy,client,informer,lister" \
-  github.com/knative/observability/pkg/client github.com/knative/observability/pkg/apis \
-  sink:v1alpha1 \
-  --go-header-file ${SCRIPT_ROOT}/hack/boilerplate/boilerplate.go.txt
+# Use go.mod to calculate which version of k8s.io/code-generator we want to
+# use.
+code_generator_version=$(go mod graph | awk '{print $2}' | grep 'k8s.io/code-generator' | cut -d '@' -f2)
+
+mkdir -p $temp_dir/src/k8s.io
+git clone https://github.com/kubernetes/code-generator $temp_dir/src/k8s.io/code-generator
+
+pushd $temp_dir/src/k8s.io/code-generator
+    # Figure out what version we should check out.
+    if [[ $code_generator_version == *"-"* ]]; then
+        # non-semver
+        sha=$(echo $code_generator_version | cut -d '-' -f3)
+        git checkout $sha
+    else
+        # semver
+        git checkout $code_generator_version
+    fi
+
+    # Install deps
+    GOPATH=$temp_dir go mod vendor
+popd
+
+mkdir -p $temp_dir/src/github.com/knative/observability
+cp -r $SCRIPT_ROOT/ $temp_dir/src/github.com/knative/observability
+
+pushd $temp_dir/src/github.com/knative/observability/
+	export GOPATH=$temp_dir
+
+	${GOPATH}/src/k8s.io/code-generator/generate-groups.sh "deepcopy,client,informer,lister" \
+	  github.com/knative/observability/pkg/client github.com/knative/observability/pkg/apis \
+	  sink:v1alpha1 \
+	  --go-header-file ${SCRIPT_ROOT}/hack/boilerplate/boilerplate.go.txt
+
+    # Looks like everything went well. Time for the scary part. Move the temp
+    # directory onto the current one.
+    rm -rf ${SCRIPT_ROOT}/pkg/client/
+    cp -r pkg/client/ ${SCRIPT_ROOT}/pkg/client/
+popd
