@@ -59,7 +59,7 @@ func TestSyslogClusterLogSink(t *testing.T) {
 	})
 }
 
-func XTestClusterEventsLogSink(t *testing.T) {
+func TestClusterEventsLogSink(t *testing.T) {
 	prefix := randomTestPrefix("cluster-event-log-sink-")
 
 	clients, logger := initialize(t)
@@ -70,19 +70,20 @@ func XTestClusterEventsLogSink(t *testing.T) {
 	defer cleanup()
 	createSyslogReceiver(t, logger, prefix, clients.kubeClient, observabilityTestNamespace)
 	waitForFluentBitToBeReady(t, logger, prefix, clients.kubeClient)
-	emitEvents(t, logger, prefix, clients.kubeClient, observabilityTestNamespace)
-	emitEvents(t, logger, prefix, clients.kubeClient, crosstalkTestNamespace)
+	numEvents := 100
+	emitEvents(t, logger, prefix, clients.kubeClient, observabilityTestNamespace, numEvents)
+	emitEvents(t, logger, prefix, clients.kubeClient, crosstalkTestNamespace, numEvents)
 	assertOnCrosstalk(t, logger, prefix, clients, observabilityTestNamespace, func(m ReceiverMetrics) error {
-		if m.Cluster != 20 {
-			return fmt.Errorf("cluster count != 20")
+		if m.Cluster != 2*numEvents {
+			return fmt.Errorf("cluster numEvents != %d", 2*numEvents)
 		}
 		messagesObservability, ok := m.Namespaced[observabilityTestNamespace]
-		if !ok || messagesObservability != 10 {
-			return fmt.Errorf("test namespace count != 10")
+		if !ok || messagesObservability != numEvents {
+			return fmt.Errorf("test namespace numEvents != %d", numEvents)
 		}
 		messagesCrosstalk, ok := m.Namespaced[crosstalkTestNamespace]
-		if !ok || messagesCrosstalk != 10 {
-			return fmt.Errorf("crosstalk namespace messages != 10")
+		if !ok || messagesCrosstalk != numEvents {
+			return fmt.Errorf("crosstalk namespace messages != %d", numEvents)
 		}
 		return nil
 	})

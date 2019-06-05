@@ -891,6 +891,7 @@ func emitEvents(
 	prefix string,
 	kc *test.KubeClient,
 	namespace string,
+	count int,
 ) {
 	logger.Info("Creating Job that can be referenced for events")
 	name := prefix + "job"
@@ -931,7 +932,8 @@ func emitEvents(
 
 	eventCreator := kc.Kube.CoreV1().Events(namespace)
 	time.Sleep(3 * time.Second)
-	for i := 0; i < 10; i++ {
+	logger.Info("Emitting events...")
+	for i := 0; i < count; i++ {
 		event := &corev1.Event{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      fmt.Sprintf("%s-%d", ref.UID, i),
