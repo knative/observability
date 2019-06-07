@@ -66,6 +66,8 @@ func (c *Controller) OnAdd(o interface{}) {
 		return
 	}
 
+	setDefaultTypeMeta(ms)
+
 	_, err := c.rbacV1Client.Roles(ms.Namespace).Create(getTelegrafRole(ms))
 	if err != nil {
 		log.Printf("Unable to create role: %s\n", err)
@@ -162,6 +164,12 @@ func (c *Controller) getTelegrafConfigMap(ms *v1alpha1.MetricSink) *v1.ConfigMap
 			Name:      name,
 			Namespace: ms.Namespace,
 			Labels:    map[string]string{"app": name},
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion: ms.APIVersion,
+				Kind:       ms.Kind,
+				Name:       ms.Name,
+				UID:        ms.UID,
+			}},
 		},
 		Data: map[string]string{
 			"telegraf.conf":     DefaultTelegrafConf,
@@ -183,6 +191,12 @@ func getTelegrafDeployment(ms *v1alpha1.MetricSink) *appsv1.Deployment {
 			Name:        name,
 			Namespace:   ms.Namespace,
 			Labels:      map[string]string{"app": name},
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion: ms.APIVersion,
+				Kind:       ms.Kind,
+				Name:       ms.Name,
+				UID:        ms.UID,
+			}},
 		},
 		Spec: appsv1.DeploymentSpec{
 			Selector: &metav1.LabelSelector{
@@ -228,9 +242,13 @@ func getTelegrafRoleBinding(ms *v1alpha1.MetricSink) *rbacv1.RoleBinding {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: ms.Namespace,
-			Labels: map[string]string{
-				"app": name,
-			},
+			Labels:    map[string]string{"app": name},
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion: ms.APIVersion,
+				Kind:       ms.Kind,
+				Name:       ms.Name,
+				UID:        ms.UID,
+			}},
 		},
 		Subjects: []rbacv1.Subject{{
 			Kind:      "ServiceAccount",
@@ -251,9 +269,13 @@ func getTelegrafRole(ms *v1alpha1.MetricSink) *rbacv1.Role {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: ms.Namespace,
-			Labels: map[string]string{
-				"app": name,
-			},
+			Labels:    map[string]string{"app": name},
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion: ms.APIVersion,
+				Kind:       ms.Kind,
+				Name:       ms.Name,
+				UID:        ms.UID,
+			}},
 		},
 		Rules: []rbacv1.PolicyRule{{
 			Verbs:         []string{"use"},
@@ -277,6 +299,15 @@ func (c *Controller) metricSinkConfig(ms *v1alpha1.MetricSink) string {
 	appendInputsAndOutputs(&config, ms.Spec.Inputs, ms.Spec.Outputs)
 
 	return config.String()
+}
+
+func setDefaultTypeMeta(ms *v1alpha1.MetricSink) {
+	if ms.Kind == "" {
+		ms.Kind = "MetricSink"
+	}
+	if ms.APIVersion == "" {
+		ms.APIVersion = "observability.knative.dev/v1alpha1"
+	}
 }
 
 const DefaultTelegrafConf = `
