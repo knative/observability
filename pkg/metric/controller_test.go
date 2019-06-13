@@ -24,9 +24,11 @@ import (
 )
 
 func TestMetricSink(t *testing.T) {
-	t.Run("it creates a telegraf config map, deployment, roles, and bindings in the specified namespace", func(t *testing.T) {
-		var createConfigMapCalled bool
-		var createReceivedCM v1.ConfigMap
+	t.Run("it sets defaults for Kind and APIVersion if missing on object so it can populate OwnerReferences correctly", func(t *testing.T) {
+		var (
+			createConfigMapCalled bool
+			createReceivedCM      v1.ConfigMap
+		)
 		spyCoreClient := &spyCoreV1Client{
 			spyConfigMapCUDer: spyConfigMapCUDer{
 				createFunc: func(cm *v1.ConfigMap) (configMap *v1.ConfigMap, e error) {
@@ -46,8 +48,10 @@ func TestMetricSink(t *testing.T) {
 			spyPodDeleter: spyPodDeleter{},
 		}
 
-		var createDeploymentCalled bool
-		var receivedDeployment appsv1.Deployment
+		var (
+			createDeploymentCalled bool
+			receivedDeployment     appsv1.Deployment
+		)
 		spyExtensionsClient := &spyAppsV1Client{
 			spyTelegrafDeploymentCUDer: spyTelegrafDeploymentCUDer{
 				createFunc: func(d *appsv1.Deployment) (*appsv1.Deployment, error) {
@@ -66,10 +70,12 @@ func TestMetricSink(t *testing.T) {
 			},
 		}
 
-		var createRoleCalled bool
-		var createRoleBindingCalled bool
-		var receivedRole rbacv1.Role
-		var receivedRoleBinding rbacv1.RoleBinding
+		var (
+			createRoleCalled        bool
+			createRoleBindingCalled bool
+			receivedRole            rbacv1.Role
+			receivedRoleBinding     rbacv1.RoleBinding
+		)
 		spyRBACClient := &spyRBACV1Client{
 			spyRoleCUDer: spyRoleCUDer{
 				createFunc: func(r *rbacv1.Role) (*rbacv1.Role, error) {
@@ -100,6 +106,7 @@ func TestMetricSink(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "test-metric-sink",
 				Namespace: "test-namespace",
+				UID:       "some-random-uid",
 			},
 			Spec: sinkv1alpha1.MetricSinkSpec{
 				Inputs: []sinkv1alpha1.MetricSinkMap{
@@ -138,6 +145,12 @@ func TestMetricSink(t *testing.T) {
 				Labels: map[string]string{
 					"app": "telegraf-test-metric-sink",
 				},
+				OwnerReferences: []metav1.OwnerReference{{
+					APIVersion: "observability.knative.dev/v1alpha1",
+					Kind:       "MetricSink",
+					Name:       d.Name,
+					UID:        d.UID,
+				}},
 			},
 			Data: map[string]string{
 				"metric-sinks.conf": metricSinkConf,
@@ -153,6 +166,12 @@ func TestMetricSink(t *testing.T) {
 				Labels: map[string]string{
 					"app": "telegraf-test-metric-sink",
 				},
+				OwnerReferences: []metav1.OwnerReference{{
+					APIVersion: "observability.knative.dev/v1alpha1",
+					Kind:       "MetricSink",
+					Name:       d.Name,
+					UID:        d.UID,
+				}},
 			},
 			Spec: appsv1.DeploymentSpec{
 				Selector: &metav1.LabelSelector{
@@ -198,6 +217,12 @@ func TestMetricSink(t *testing.T) {
 				Labels: map[string]string{
 					"app": "telegraf-test-metric-sink",
 				},
+				OwnerReferences: []metav1.OwnerReference{{
+					APIVersion: "observability.knative.dev/v1alpha1",
+					Kind:       "MetricSink",
+					Name:       d.Name,
+					UID:        d.UID,
+				}},
 			},
 			Rules: []rbacv1.PolicyRule{{
 				Verbs:         []string{"use"},
@@ -214,6 +239,276 @@ func TestMetricSink(t *testing.T) {
 				Labels: map[string]string{
 					"app": "telegraf-test-metric-sink",
 				},
+				OwnerReferences: []metav1.OwnerReference{{
+					APIVersion: "observability.knative.dev/v1alpha1",
+					Kind:       "MetricSink",
+					Name:       d.Name,
+					UID:        d.UID,
+				}},
+			},
+			Subjects: []rbacv1.Subject{{
+				Kind:      "ServiceAccount",
+				Name:      "default",
+				Namespace: "test-namespace",
+			}},
+			RoleRef: rbacv1.RoleRef{
+				APIGroup: "rbac.authorization.k8s.io",
+				Kind:     "Role",
+				Name:     "telegraf-test-metric-sink",
+			},
+		}
+
+		if !createConfigMapCalled {
+			t.Fatalf("ConfigMap Create not called")
+		}
+		if diff := cmp.Diff(createReceivedCM, expectedConfigMap); diff != "" {
+			t.Fatalf("ConfigMap does not equal expected (-want +got): %v", diff)
+		}
+		if !createDeploymentCalled {
+			t.Fatalf("Deployment Create not called")
+		}
+		if diff := cmp.Diff(receivedDeployment, expectedDeployment); diff != "" {
+			t.Fatalf("Deployment does not equal expected (-want +got): %v", diff)
+		}
+		if !createRoleCalled {
+			t.Fatalf("Role Create not called")
+		}
+		if diff := cmp.Diff(receivedRole, expectedRole); diff != "" {
+			t.Fatalf("Role does not equal expected (-want +got): %v", diff)
+		}
+		if !createRoleBindingCalled {
+			t.Fatalf("RoleBinding Create not called")
+		}
+		if diff := cmp.Diff(receivedRoleBinding, expectedRoleBinding); diff != "" {
+			t.Fatalf("RoleBinding does not equal expected (-want +got): %v", diff)
+		}
+	})
+
+	t.Run("it creates a telegraf config map, deployment, roles, and bindings in the specified namespace", func(t *testing.T) {
+		var (
+			createConfigMapCalled bool
+			createReceivedCM      v1.ConfigMap
+		)
+		spyCoreClient := &spyCoreV1Client{
+			spyConfigMapCUDer: spyConfigMapCUDer{
+				createFunc: func(cm *v1.ConfigMap) (configMap *v1.ConfigMap, e error) {
+					createConfigMapCalled = true
+					createReceivedCM = *cm
+					return cm, nil
+				},
+				updateFunc: func(*v1.ConfigMap) (configMap *v1.ConfigMap, e error) {
+					t.Fatal("should not be called")
+					return nil, nil
+				},
+				deleteFunc: func(string, *metav1.DeleteOptions) error {
+					t.Fatal("should not be called")
+					return nil
+				},
+			},
+			spyPodDeleter: spyPodDeleter{},
+		}
+
+		var (
+			createDeploymentCalled bool
+			receivedDeployment     appsv1.Deployment
+		)
+		spyExtensionsClient := &spyAppsV1Client{
+			spyTelegrafDeploymentCUDer: spyTelegrafDeploymentCUDer{
+				createFunc: func(d *appsv1.Deployment) (*appsv1.Deployment, error) {
+					createDeploymentCalled = true
+					receivedDeployment = *d
+					return d, nil
+				},
+				updateFunc: func(*appsv1.Deployment) (*appsv1.Deployment, error) {
+					t.Fatal("should not be called")
+					return nil, nil
+				},
+				deleteFunc: func(string, *metav1.DeleteOptions) error {
+					t.Fatal("should not be called")
+					return nil
+				},
+			},
+		}
+
+		var (
+			createRoleCalled        bool
+			createRoleBindingCalled bool
+			receivedRole            rbacv1.Role
+			receivedRoleBinding     rbacv1.RoleBinding
+		)
+		spyRBACClient := &spyRBACV1Client{
+			spyRoleCUDer: spyRoleCUDer{
+				createFunc: func(r *rbacv1.Role) (*rbacv1.Role, error) {
+					createRoleCalled = true
+					receivedRole = *r
+					return r, nil
+				},
+				deleteFunc: func(string, *metav1.DeleteOptions) error {
+					t.Fatal("should not be called")
+					return nil
+				},
+			},
+			spyRoleBindingCUDer: spyRoleBindingCUDer{
+				createFunc: func(rb *rbacv1.RoleBinding) (*rbacv1.RoleBinding, error) {
+					createRoleBindingCalled = true
+					receivedRoleBinding = *rb
+					return rb, nil
+				},
+				deleteFunc: func(string, *metav1.DeleteOptions) error {
+					t.Fatal("should not be called")
+					return nil
+				},
+			},
+		}
+
+		c := metric.NewController("test-cluster-name", spyCoreClient, spyExtensionsClient, spyRBACClient)
+		d := &sinkv1alpha1.MetricSink{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "MetricSink",
+				APIVersion: "some-api/v1alpha1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-metric-sink",
+				Namespace: "test-namespace",
+				UID:       "some-random-uid",
+			},
+			Spec: sinkv1alpha1.MetricSinkSpec{
+				Inputs: []sinkv1alpha1.MetricSinkMap{
+					{
+						"type": "cpu",
+					},
+				},
+				Outputs: []sinkv1alpha1.MetricSinkMap{
+					{
+						"type":   "datadog",
+						"apikey": "some-key",
+					},
+				},
+			},
+		}
+
+		c.OnAdd(d)
+
+		metricSinkConf := `[global_tags]
+  cluster_name = "test-cluster-name"
+
+[inputs]
+
+  [[inputs.cpu]]
+
+[outputs]
+
+  [[outputs.datadog]]
+    apikey = "some-key"
+`
+
+		expectedConfigMap := v1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "telegraf-test-metric-sink",
+				Namespace: "test-namespace",
+				Labels: map[string]string{
+					"app": "telegraf-test-metric-sink",
+				},
+				OwnerReferences: []metav1.OwnerReference{{
+					APIVersion: d.APIVersion,
+					Kind:       d.Kind,
+					Name:       d.Name,
+					UID:        d.UID,
+				}},
+			},
+			Data: map[string]string{
+				"metric-sinks.conf": metricSinkConf,
+				"telegraf.conf":     metric.DefaultTelegrafConf,
+			},
+		}
+
+		var r int32 = 1
+		expectedDeployment := appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "telegraf-test-metric-sink",
+				Namespace: "test-namespace",
+				Labels: map[string]string{
+					"app": "telegraf-test-metric-sink",
+				},
+				OwnerReferences: []metav1.OwnerReference{{
+					APIVersion: d.APIVersion,
+					Kind:       d.Kind,
+					Name:       d.Name,
+					UID:        d.UID,
+				}},
+			},
+			Spec: appsv1.DeploymentSpec{
+				Selector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{"app": "telegraf-test-metric-sink"},
+				},
+				Replicas: &r,
+				Template: v1.PodTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{
+						Labels: map[string]string{
+							"app": "telegraf-test-metric-sink",
+						},
+					},
+					Spec: v1.PodSpec{
+						Volumes: []v1.Volume{{
+							Name: "telegraf-config",
+							VolumeSource: v1.VolumeSource{
+								ConfigMap: &v1.ConfigMapVolumeSource{
+									LocalObjectReference: v1.LocalObjectReference{
+										Name: "telegraf-test-metric-sink",
+									},
+								},
+							},
+						}},
+						Containers: []v1.Container{{
+							Name:    "telegraf",
+							Image:   "telegraf:1.9.3-alpine",
+							Command: []string{"telegraf", "--config-directory", "/etc/telegraf"},
+							VolumeMounts: []v1.VolumeMount{{
+								Name:      "telegraf-config",
+								MountPath: "/etc/telegraf",
+							}},
+							ImagePullPolicy: "IfNotPresent",
+						}},
+					},
+				},
+			},
+		}
+
+		expectedRole := rbacv1.Role{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "telegraf-test-metric-sink",
+				Namespace: "test-namespace",
+				Labels: map[string]string{
+					"app": "telegraf-test-metric-sink",
+				},
+				OwnerReferences: []metav1.OwnerReference{{
+					APIVersion: d.APIVersion,
+					Kind:       d.Kind,
+					Name:       d.Name,
+					UID:        d.UID,
+				}},
+			},
+			Rules: []rbacv1.PolicyRule{{
+				Verbs:         []string{"use"},
+				APIGroups:     []string{"extensions"},
+				Resources:     []string{"podsecuritypolicies"},
+				ResourceNames: []string{"telegraf"},
+			}},
+		}
+
+		expectedRoleBinding := rbacv1.RoleBinding{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "telegraf-test-metric-sink",
+				Namespace: "test-namespace",
+				Labels: map[string]string{
+					"app": "telegraf-test-metric-sink",
+				},
+				OwnerReferences: []metav1.OwnerReference{{
+					APIVersion: d.APIVersion,
+					Kind:       d.Kind,
+					Name:       d.Name,
+					UID:        d.UID,
+				}},
 			},
 			Subjects: []rbacv1.Subject{{
 				Kind:      "ServiceAccount",
@@ -314,9 +609,14 @@ func TestMetricSink(t *testing.T) {
 
 		c := metric.NewController("", spyCoreClient, spyExtensionsClient, spyRBACClient)
 		d := &sinkv1alpha1.MetricSink{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "MetricSink",
+				APIVersion: "myapi/v1alpha12",
+			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "test-metric-sink",
 				Namespace: "test-namespace",
+				UID:       "metric-sink-uid",
 			},
 			Spec: sinkv1alpha1.MetricSinkSpec{
 				Inputs: []sinkv1alpha1.MetricSinkMap{
@@ -352,6 +652,12 @@ func TestMetricSink(t *testing.T) {
 				Labels: map[string]string{
 					"app": "telegraf-test-metric-sink",
 				},
+				OwnerReferences: []metav1.OwnerReference{{
+					APIVersion: d.APIVersion,
+					Kind:       d.Kind,
+					Name:       d.Name,
+					UID:        d.UID,
+				}},
 			},
 			Data: map[string]string{
 				"metric-sinks.conf": metricSinkConf,
@@ -436,6 +742,12 @@ func TestMetricSink(t *testing.T) {
 				Labels: map[string]string{
 					"app": "telegraf-test-metric-sink",
 				},
+				OwnerReferences: []metav1.OwnerReference{{
+					APIVersion: nms.APIVersion,
+					Kind:       nms.Kind,
+					Name:       nms.Name,
+					UID:        nms.UID,
+				}},
 			},
 			Data: map[string]string{
 				"metric-sinks.conf": metricSinkConf,
