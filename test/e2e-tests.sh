@@ -45,6 +45,6 @@ header "Running CRD e2e tests"
 ./test/crd/test.sh || fail_test
 
 header "Running Go e2e tests"
-go_test_e2e ./test/e2e/... || fail_test
+go_test_e2e -timeout=20m ./test/e2e/... || fail_test
 
 success
