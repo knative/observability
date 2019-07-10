@@ -23,40 +23,42 @@ import (
 
 	"github.com/knative/observability/pkg/apis/sink/v1alpha1"
 	observabilityv1alpha1 "github.com/knative/observability/pkg/client/clientset/versioned/typed/sink/v1alpha1"
-	"github.com/knative/pkg/test/logging"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestClusterMetricSink(t *testing.T) {
 	var prefix = randomTestPrefix("cluster-metric-sink-")
 
-	clients, logger := initialize(t)
-	defer teardownNamespaces(clients, logger)
+	clients := initialize(t)
+	defer teardownNamespaces(t, clients)
 
-	logger.Infof("Test Prefix: %s", prefix)
-	cleanup := createClusterMetricSink(t, logger, prefix, clients.sinkClient, observabilityTestNamespace)
+	t.Logf("Test Prefix: %s", prefix)
+	cleanup := createClusterMetricSink(t, prefix, clients.sinkClient, observabilityTestNamespace)
 	defer cleanup()
 
-	waitForTelegrafToBeReady(t, logger, prefix, "telegraf", "knative-observability", clients.kubeClient)
+	waitForTelegrafToBeReady(t, prefix, "telegraf", "knative-observability", clients.kubeClient)
 	assertTelegrafOutputtedData(
 		t,
-		logger,
 		"app=telegraf",
 		"knative-observability",
 		clients.kubeClient,
 		clients.restCfg,
+		func(metrics map[string]float64) []error {
+			return checkMetrics(metrics, map[string]float64{
+				"test": 5,
+			})
+		},
 	)
 }
 
 func createClusterMetricSink(
 	t *testing.T,
-	logger *logging.BaseLogger,
 	prefix string,
 	sc observabilityv1alpha1.ObservabilityV1alpha1Interface,
 	namespace string,
 ) func() error {
 	name := prefix + "test"
-	logger.Info("Creating the ClusterMetricSink")
+	t.Log("Creating the ClusterMetricSink")
 	_, err := sc.ClusterMetricSinks(namespace).Create(&v1alpha1.ClusterMetricSink{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,

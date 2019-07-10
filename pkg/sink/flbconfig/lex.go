@@ -194,7 +194,7 @@ func LexKey(l *Lexer) StateFunc {
 		}
 
 		next := l.PeekNext()
-		if !unicode.IsLetter(next) && !unicode.IsNumber(next) {
+		if !unicode.IsLetter(next) && !unicode.IsNumber(next) && next != '.' {
 			switch next {
 			case RuneTab, RuneSpace:
 				l.Emit(TokenKey)

@@ -18,7 +18,7 @@ RUN go build \
 
 FROM ubuntu:xenial
 
-ENV TELEGRAF_VERSION 1.9.3
+ENV TELEGRAF_VERSION 1.11.0
 RUN apt update && apt install -y ca-certificates && update-ca-certificates
 ADD https://dl.influxdata.com/telegraf/releases/telegraf_${TELEGRAF_VERSION}-1_amd64.deb /tmp/telegraf_${TELEGRAF_VERSION}-1_amd64.deb
 

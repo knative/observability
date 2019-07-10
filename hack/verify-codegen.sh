@@ -18,35 +18,15 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-source $(dirname $0)/../vendor/github.com/knative/test-infra/scripts/library.sh
+SCRIPT_ROOT=$(dirname "${BASH_SOURCE}")/..
 
-readonly TMP_DIFFROOT="$(mktemp -d ${REPO_ROOT_DIR}/tmpdiffroot.XXXXXX)"
+"${SCRIPT_ROOT}/hack/update-codegen.sh"
 
-cleanup() {
-  rm -rf "${TMP_DIFFROOT}"
-}
-
-trap "cleanup" EXIT SIGINT
-
-cleanup
-
-# Save working tree state
-mkdir -p "${TMP_DIFFROOT}/vendor"
-cp -aR "${REPO_ROOT_DIR}/go.sum" "${REPO_ROOT_DIR}/vendor" "${TMP_DIFFROOT}"
-
-"${REPO_ROOT_DIR}/hack/update-deps.sh"
-echo "Diffing ${REPO_ROOT_DIR} against freshly updated dependencies"
-ret=0
-diff -Naupr --no-dereference "${REPO_ROOT_DIR}/vendor" "${TMP_DIFFROOT}/vendor" || ret=1
-
-# Restore working tree state
-rm -fr "${REPO_ROOT_DIR}/go.sum" "${REPO_ROOT_DIR}/vendor"
-cp -aR "${TMP_DIFFROOT}"/* "${REPO_ROOT_DIR}"
-
-if [[ $ret -eq 0 ]]
-then
-  echo "${REPO_ROOT_DIR} up to date."
+if [[ -z $(git status -s) ]]; then
+  echo "generated code up to date."
 else
-  echo "ERROR: ${REPO_ROOT_DIR} is out of date. Please run ./hack/update-deps.sh"
+  git diff
+  echo "generated code is out of date. Please run hack/update-codegen.sh"
   exit 1
 fi
+

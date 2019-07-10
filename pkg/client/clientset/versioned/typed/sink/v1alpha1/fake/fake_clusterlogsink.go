@@ -100,18 +100,6 @@ func (c *FakeClusterLogSinks) Update(clusterLogSink *v1alpha1.ClusterLogSink) (r
 	return obj.(*v1alpha1.ClusterLogSink), err
 }
 
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeClusterLogSinks) UpdateStatus(clusterLogSink *v1alpha1.ClusterLogSink) (*v1alpha1.ClusterLogSink, error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(clusterlogsinksResource, "status", c.ns, clusterLogSink), &v1alpha1.ClusterLogSink{})
-
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*v1alpha1.ClusterLogSink), err
-}
-
 // Delete takes name of the clusterLogSink and deletes it. Returns an error if one occurs.
 func (c *FakeClusterLogSinks) Delete(name string, options *v1.DeleteOptions) error {
 	_, err := c.Fake.

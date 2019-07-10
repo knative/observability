@@ -39,7 +39,6 @@ type LogSinksGetter interface {
 type LogSinkInterface interface {
 	Create(*v1alpha1.LogSink) (*v1alpha1.LogSink, error)
 	Update(*v1alpha1.LogSink) (*v1alpha1.LogSink, error)
-	UpdateStatus(*v1alpha1.LogSink) (*v1alpha1.LogSink, error)
 	Delete(name string, options *v1.DeleteOptions) error
 	DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error
 	Get(name string, options v1.GetOptions) (*v1alpha1.LogSink, error)
@@ -127,22 +126,6 @@ func (c *logSinks) Update(logSink *v1alpha1.LogSink) (result *v1alpha1.LogSink, 
 		Namespace(c.ns).
 		Resource("logsinks").
 		Name(logSink.Name).
-		Body(logSink).
-		Do().
-		Into(result)
-	return
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-
-func (c *logSinks) UpdateStatus(logSink *v1alpha1.LogSink) (result *v1alpha1.LogSink, err error) {
-	result = &v1alpha1.LogSink{}
-	err = c.client.Put().
-		Namespace(c.ns).
-		Resource("logsinks").
-		Name(logSink.Name).
-		SubResource("status").
 		Body(logSink).
 		Do().
 		Into(result)

@@ -19,33 +19,78 @@ limitations under the License.
 package e2e
 
 import (
+	"strings"
 	"testing"
 	"time"
 
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/knative/observability/pkg/apis/sink/v1alpha1"
 	observabilityv1alpha1 "github.com/knative/observability/pkg/client/clientset/versioned/typed/sink/v1alpha1"
 	"github.com/knative/pkg/test"
-	"github.com/knative/pkg/test/logging"
+	"github.com/knative/pkg/test/monitoring"
 )
 
 func TestMetricSink(t *testing.T) {
-	t.Run("creates a metric sink in the specified namespace", func(t *testing.T) {
+	t.Run("uses the same image as the telegraf daemonset", func(t *testing.T) {
+		// The metric controller deploys a namespaced telegraf deployment
+		// whereas the telegraf daemonset is deployed via the manifest. This
+		// test ensures the metric controller deploys the correct version of
+		// telegraf.
 		var prefix = randomTestPrefix("metric-sink-")
 
-		clients, logger := initialize(t)
-		defer teardownNamespaces(clients, logger)
+		clients := initialize(t)
+		defer teardownNamespaces(t, clients)
 
-		logger.Infof("Test Prefix: %s", prefix)
+		t.Logf("Test Prefix: %s", prefix)
 		msName := prefix + "test"
 		resName := "telegraf-" + msName
 
 		cleanup := createMetricSink(
 			t,
-			logger,
+			msName,
+			observabilityTestNamespace,
+			clients.sinkClient,
+		)
+		defer cleanup()
+
+		waitForTelegrafToBeReady(
+			t,
+			prefix,
+			resName,
+			observabilityTestNamespace,
+			clients.kubeClient,
+		)
+
+		dspods, err := monitoring.GetPods(clients.kubeClient.Kube, "telegraf", "knative-observability")
+		assertErr(t, "unable to get telegraf daemonset pods", err)
+		daemonSetImage := dspods.Items[0].Spec.Containers[0].Image
+
+		dpods, err := monitoring.GetPods(clients.kubeClient.Kube, resName, observabilityTestNamespace)
+		assertErr(t, "unable to get telegraf deployment pods", err)
+		deploymentImage := dpods.Items[0].Spec.Containers[0].Image
+
+		if daemonSetImage != deploymentImage {
+			t.Fatal("Telegraf daemon set and deployments are not using the same image")
+		}
+
+	})
+
+	t.Run("creates a metric sink in the specified namespace", func(t *testing.T) {
+		var prefix = randomTestPrefix("metric-sink-")
+
+		clients := initialize(t)
+		defer teardownNamespaces(t, clients)
+
+		t.Logf("Test Prefix: %s", prefix)
+		msName := prefix + "test"
+		resName := "telegraf-" + msName
+		prometheusMetricName := strings.ReplaceAll(prefix, "-", "_") + "test_metric"
+
+		cleanup := createMetricSink(
+			t,
 			msName,
 			observabilityTestNamespace,
 			clients.sinkClient,
@@ -54,28 +99,30 @@ func TestMetricSink(t *testing.T) {
 
 		assertRoleExists(
 			t,
-			logger,
 			resName,
 			observabilityTestNamespace,
 			clients.kubeClient,
 		)
 		assertRoleBindingExists(
 			t,
-			logger,
 			resName,
 			observabilityTestNamespace,
 			clients.kubeClient,
 		)
 		assertConfigMapExists(
 			t,
-			logger,
 			resName,
+			observabilityTestNamespace,
+			clients.kubeClient,
+		)
+		createPrometheusScrapeTarget(
+			t,
+			prometheusMetricName,
 			observabilityTestNamespace,
 			clients.kubeClient,
 		)
 		waitForTelegrafToBeReady(
 			t,
-			logger,
 			prefix,
 			resName,
 			observabilityTestNamespace,
@@ -83,23 +130,27 @@ func TestMetricSink(t *testing.T) {
 		)
 		assertTelegrafOutputtedData(
 			t,
-			logger,
 			"app="+resName,
 			observabilityTestNamespace,
 			clients.kubeClient,
 			clients.restCfg,
+			func(metrics map[string]float64) []error {
+				return checkMetrics(metrics, map[string]float64{
+					"test":               5,
+					prometheusMetricName: 105, // This value is hardcoded in the prometheus_scrape_target docker image
+				})
+			},
 		)
 	})
 }
 
 func createMetricSink(
 	t *testing.T,
-	logger *logging.BaseLogger,
 	name string,
 	namespace string,
 	sc observabilityv1alpha1.ObservabilityV1alpha1Interface,
 ) func() error {
-	logger.Info("Creating the MetricSink")
+	t.Log("Creating the MetricSink")
 	_, err := sc.MetricSinks(namespace).Create(&v1alpha1.MetricSink{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -132,17 +183,16 @@ func createMetricSink(
 
 func assertConfigMapExists(
 	t *testing.T,
-	logger *logging.BaseLogger,
 	name string,
 	namespace string,
 	kc *test.KubeClient) {
 
 	var (
 		err error
-		cm  *v1.ConfigMap
+		cm  *corev1.ConfigMap
 	)
 
-	logger.Infof("Verifying existence of config map in %s", namespace)
+	t.Logf("Verifying existence of config map in %s", namespace)
 	for i := 0; i < 300; i++ {
 		cm, err = kc.Kube.CoreV1().ConfigMaps(namespace).Get(name, metav1.GetOptions{})
 		if cm.Name == name {
@@ -155,7 +205,6 @@ func assertConfigMapExists(
 
 func assertRoleExists(
 	t *testing.T,
-	logger *logging.BaseLogger,
 	name string,
 	namespace string,
 	kc *test.KubeClient) {
@@ -165,7 +214,7 @@ func assertRoleExists(
 		r   *rbacv1.Role
 	)
 
-	logger.Infof("Verifying existence of role in %s", namespace)
+	t.Logf("Verifying existence of role in %s", namespace)
 	for i := 0; i < 300; i++ {
 		r, err = kc.Kube.RbacV1().Roles(namespace).Get(name, metav1.GetOptions{})
 		if r.Name == name {
@@ -179,7 +228,6 @@ func assertRoleExists(
 
 func assertRoleBindingExists(
 	t *testing.T,
-	logger *logging.BaseLogger,
 	name string,
 	namespace string,
 	kc *test.KubeClient) {
@@ -189,7 +237,7 @@ func assertRoleBindingExists(
 		rb  *rbacv1.RoleBinding
 	)
 
-	logger.Infof("Verifying existence of role binding in %s", namespace)
+	t.Logf("Verifying existence of role binding in %s", namespace)
 	for i := 0; i < 300; i++ {
 		rb, err = kc.Kube.RbacV1().RoleBindings(namespace).Get(name, metav1.GetOptions{})
 		if rb.Name == name {

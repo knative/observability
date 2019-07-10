@@ -35,6 +35,7 @@ import (
 type config struct {
 	Host        string `env:"FORWARDER_HOST,required,report"`
 	MetricsPort string `env:"METRICS_PORT,report"`
+	BufferLimit int    `env:"SEND_BUFFER_SIZE,report"`
 }
 
 func main() {
@@ -42,6 +43,7 @@ func main() {
 
 	conf := config{
 		MetricsPort: "6060",
+		BufferLimit: 8 * 1024, // this is the default in fluent-logger-golang
 	}
 	err := envstruct.Load(&conf)
 	if err != nil {
@@ -69,6 +71,8 @@ func main() {
 	f, err := fluent.New(fluent.Config{
 		FluentHost:   conf.Host,
 		WriteTimeout: time.Millisecond * 500,
+		Async:        true,
+		BufferLimit:  conf.BufferLimit,
 	})
 	if err != nil {
 		log.Fatalf("unable to create fluent logger client: %s", err)

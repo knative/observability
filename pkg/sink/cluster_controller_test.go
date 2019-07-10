@@ -18,15 +18,13 @@ package sink_test
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/knative/observability/pkg/apis/sink/v1alpha1"
 	"github.com/knative/observability/pkg/sink"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestClusterSinkModification(t *testing.T) {
+func TestClusterLogSinkController(t *testing.T) {
 	var tests = []struct {
 		name       string
 		operations []string
@@ -40,7 +38,14 @@ func TestClusterSinkModification(t *testing.T) {
 				{Type: "syslog", SyslogSpec: v1alpha1.SyslogSpec{Host: "example.com", Port: 12345}},
 			},
 			[]string{
-				"\n[OUTPUT]\n    Name syslog\n    Match *\n    StatsAddr 127.0.0.1:5000\n    Sinks []\n    ClusterSinks [{\"addr\":\"example.com:12345\",\"name\":\"sink-example.com\"}]\n",
+				`
+[OUTPUT]
+    Name syslog
+    Match *
+    InstanceName sink-example.com
+    Addr example.com:12345
+    Cluster true
+`,
 			},
 		},
 		{
@@ -50,17 +55,33 @@ func TestClusterSinkModification(t *testing.T) {
 				{Type: "syslog", SyslogSpec: v1alpha1.SyslogSpec{Host: "example.com", Port: 12345, EnableTLS: true}},
 			},
 			[]string{
-				"\n[OUTPUT]\n    Name syslog\n    Match *\n    StatsAddr 127.0.0.1:5000\n    Sinks []\n    ClusterSinks [{\"addr\":\"example.com:12345\",\"tls\":{},\"name\":\"sink-example.com\"}]\n",
+				`
+[OUTPUT]
+    Name syslog
+    Match *
+    InstanceName sink-example.com
+    Addr example.com:12345
+    Cluster true
+    TLSConfig {}
+`,
 			},
 		},
 		{
 			"Add a single TLS sink with insecure skip verify set",
 			[]string{"add"},
 			[]v1alpha1.SinkSpec{
-				{Type: "syslog", SyslogSpec: v1alpha1.SyslogSpec{Host: "example.com", Port: 12345, EnableTLS: true, InsecureSkipVerify: true}},
+				{Type: "syslog", SyslogSpec: v1alpha1.SyslogSpec{Host: "example.com", Port: 12345, EnableTLS: true}, InsecureSkipVerify: true},
 			},
 			[]string{
-				"\n[OUTPUT]\n    Name syslog\n    Match *\n    StatsAddr 127.0.0.1:5000\n    Sinks []\n    ClusterSinks [{\"addr\":\"example.com:12345\",\"tls\":{\"insecure_skip_verify\":true},\"name\":\"sink-example.com\"}]\n",
+				`
+[OUTPUT]
+    Name syslog
+    Match *
+    InstanceName sink-example.com
+    Addr example.com:12345
+    Cluster true
+    TLSConfig {"insecure_skip_verify":true}
+`,
 			},
 		},
 		{
@@ -71,8 +92,29 @@ func TestClusterSinkModification(t *testing.T) {
 				{Type: "syslog", SyslogSpec: v1alpha1.SyslogSpec{Host: "test.com", Port: 4567}},
 			},
 			[]string{
-				"\n[OUTPUT]\n    Name syslog\n    Match *\n    StatsAddr 127.0.0.1:5000\n    Sinks []\n    ClusterSinks [{\"addr\":\"example.com:12345\",\"name\":\"sink-example.com\"}]\n",
-				"\n[OUTPUT]\n    Name syslog\n    Match *\n    StatsAddr 127.0.0.1:5000\n    Sinks []\n    ClusterSinks [{\"addr\":\"example.com:12345\",\"name\":\"sink-example.com\"},{\"addr\":\"test.com:4567\",\"name\":\"sink-test.com\"}]\n",
+				`
+[OUTPUT]
+    Name syslog
+    Match *
+    InstanceName sink-example.com
+    Addr example.com:12345
+    Cluster true
+`,
+				`
+[OUTPUT]
+    Name syslog
+    Match *
+    InstanceName sink-example.com
+    Addr example.com:12345
+    Cluster true
+
+[OUTPUT]
+    Name syslog
+    Match *
+    InstanceName sink-test.com
+    Addr test.com:4567
+    Cluster true
+`,
 			},
 		},
 		{
@@ -83,8 +125,22 @@ func TestClusterSinkModification(t *testing.T) {
 				{Type: "syslog", SyslogSpec: v1alpha1.SyslogSpec{Host: "example.com", Port: 4567}},
 			},
 			[]string{
-				"\n[OUTPUT]\n    Name syslog\n    Match *\n    StatsAddr 127.0.0.1:5000\n    Sinks []\n    ClusterSinks [{\"addr\":\"example.com:12345\",\"name\":\"sink-example.com\"}]\n",
-				"\n[OUTPUT]\n    Name syslog\n    Match *\n    StatsAddr 127.0.0.1:5000\n    Sinks []\n    ClusterSinks [{\"addr\":\"example.com:4567\",\"name\":\"sink-example.com\"}]\n",
+				`
+[OUTPUT]
+    Name syslog
+    Match *
+    InstanceName sink-example.com
+    Addr example.com:12345
+    Cluster true
+`,
+				`
+[OUTPUT]
+    Name syslog
+    Match *
+    InstanceName sink-example.com
+    Addr example.com:4567
+    Cluster true
+`,
 			},
 		},
 		{
@@ -95,8 +151,22 @@ func TestClusterSinkModification(t *testing.T) {
 				{Type: "syslog", SyslogSpec: v1alpha1.SyslogSpec{Host: "example.com", Port: 12346}},
 			},
 			[]string{
-				"\n[OUTPUT]\n    Name syslog\n    Match *\n    StatsAddr 127.0.0.1:5000\n    Sinks []\n    ClusterSinks [{\"addr\":\"example.com:12345\",\"name\":\"sink-example.com\"}]\n",
-				"\n[OUTPUT]\n    Name syslog\n    Match *\n    StatsAddr 127.0.0.1:5000\n    Sinks []\n    ClusterSinks [{\"addr\":\"example.com:12346\",\"name\":\"sink-example.com\"}]\n",
+				`
+[OUTPUT]
+    Name syslog
+    Match *
+    InstanceName sink-example.com
+    Addr example.com:12345
+    Cluster true
+`,
+				`
+[OUTPUT]
+    Name syslog
+    Match *
+    InstanceName sink-example.com
+    Addr example.com:12346
+    Cluster true
+`,
 			},
 		},
 		{
@@ -107,8 +177,19 @@ func TestClusterSinkModification(t *testing.T) {
 				{Type: "syslog", SyslogSpec: v1alpha1.SyslogSpec{Host: "example.com", Port: 12345}},
 			},
 			[]string{
-				"\n[OUTPUT]\n    Name syslog\n    Match *\n    StatsAddr 127.0.0.1:5000\n    Sinks []\n    ClusterSinks [{\"addr\":\"example.com:12345\",\"name\":\"sink-example.com\"}]\n",
-				"\n[OUTPUT]\n    Name null\n    Match *\n    StatsAddr 127.0.0.1:5000\n",
+				`
+[OUTPUT]
+    Name syslog
+    Match *
+    InstanceName sink-example.com
+    Addr example.com:12345
+    Cluster true
+`,
+				`
+[OUTPUT]
+    Name null
+    Match *
+`,
 			},
 		},
 	}
@@ -118,7 +199,7 @@ func TestClusterSinkModification(t *testing.T) {
 			spyConfigMapPatcher := &spyConfigMapPatcher{}
 			spyDaemonSetPodDeleter := &spyDaemonSetPodDeleter{}
 
-			c := sink.NewClusterController(spyConfigMapPatcher, spyDaemonSetPodDeleter, sink.NewConfig("127.0.0.1:5000"))
+			c := sink.NewClusterController(spyConfigMapPatcher, spyDaemonSetPodDeleter, sink.NewConfig())
 			for i, spec := range test.specs {
 				d := &v1alpha1.ClusterLogSink{
 					ObjectMeta: metav1.ObjectMeta{
@@ -156,142 +237,100 @@ func TestClusterSinkModification(t *testing.T) {
 			}
 		})
 	}
-}
 
-func TestClusterDoesNotUpdateWhenNonSpecPropertiesHaveChanged(t *testing.T) {
-	type SinkChangeTest struct {
-		name string
-		os   *v1alpha1.ClusterLogSink
-		ns   *v1alpha1.ClusterLogSink
-	}
+	t.Run("it does not update log sinks when non-spec properties have changed", func(t *testing.T) {
+		type SinkChangeTest struct {
+			name string
+			os   *v1alpha1.ClusterLogSink
+			ns   *v1alpha1.ClusterLogSink
+		}
 
-	specs := []SinkChangeTest{
-		{
-			name: "change status state",
-			os: &v1alpha1.ClusterLogSink{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "sink",
+		specs := []SinkChangeTest{
+			{
+				name: "change object labels",
+				os: &v1alpha1.ClusterLogSink{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "sink",
+					},
 				},
-				Status: v1alpha1.SinkStatus{
-					State: "Running1",
-				},
-			},
-			ns: &v1alpha1.ClusterLogSink{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "sink",
-				},
-				Status: v1alpha1.SinkStatus{
-					State: "Running2",
-				},
-			},
-		},
-		{
-			name: "change status timestamp",
-			os: &v1alpha1.ClusterLogSink{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "sink",
-				},
-				Status: v1alpha1.SinkStatus{
-					LastSuccessfulSend: v1.MicroTime{
-						Time: time.Time{},
+				ns: &v1alpha1.ClusterLogSink{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "sink",
+						Labels: map[string]string{
+							"test": "labelval",
+						},
 					},
 				},
 			},
-			ns: &v1alpha1.ClusterLogSink{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "sink",
-				},
-				Status: v1alpha1.SinkStatus{
-					LastSuccessfulSend: v1.MicroTime{
-						Time: time.Now(),
-					},
-				},
-			},
-		},
-		{
-			name: "change object labels",
-			os: &v1alpha1.ClusterLogSink{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "sink",
-				},
-			},
-			ns: &v1alpha1.ClusterLogSink{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "sink",
-					Labels: map[string]string{
-						"test": "labelval",
-					},
-				},
-			},
-		},
-	}
+		}
 
-	for _, sc := range specs {
-		t.Run(sc.name, func(t *testing.T) {
-			spyPatcher := &spyConfigMapPatcher{}
-			spyDeleter := &spyDaemonSetPodDeleter{}
-			c := sink.NewClusterController(
-				spyPatcher,
-				spyDeleter,
-				sink.NewConfig("127.0.0.1:5000"),
-			)
-			c.OnUpdate(sc.os, sc.ns)
-			if spyPatcher.patchCalled {
-				t.Errorf("Expected patch to not be called")
-			}
-			if spyDeleter.deleteCollectionCalled {
-				t.Errorf("Expected delete to not be called")
-			}
-		})
-	}
-}
+		for _, sc := range specs {
+			t.Run(sc.name, func(t *testing.T) {
+				spyPatcher := &spyConfigMapPatcher{}
+				spyDeleter := &spyDaemonSetPodDeleter{}
+				c := sink.NewClusterController(
+					spyPatcher,
+					spyDeleter,
+					sink.NewConfig(),
+				)
+				c.OnUpdate(sc.os, sc.ns)
+				if spyPatcher.patchCalled {
+					t.Errorf("Expected patch to not be called")
+				}
+				if spyDeleter.deleteCollectionCalled {
+					t.Errorf("Expected delete to not be called")
+				}
+			})
+		}
+	})
 
-func TestNoopChange(t *testing.T) {
-	spyPatcher := &spyConfigMapPatcher{}
-	spyDeleter := &spyDaemonSetPodDeleter{}
-	c := sink.NewClusterController(spyPatcher, spyDeleter, sink.NewConfig("127.0.0.1:5000"))
+	t.Run("it should not update when there are no changes between cluster log sinks", func(t *testing.T) {
+		spyPatcher := &spyConfigMapPatcher{}
+		spyDeleter := &spyDaemonSetPodDeleter{}
+		c := sink.NewClusterController(spyPatcher, spyDeleter, sink.NewConfig())
 
-	s1 := &v1alpha1.ClusterLogSink{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "sink",
-		},
-		Spec: v1alpha1.SinkSpec{
-			Type: "syslog",
-			SyslogSpec: v1alpha1.SyslogSpec{
-				Host: "example.com",
-				Port: 12345,
+		s1 := &v1alpha1.ClusterLogSink{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "sink",
 			},
-		},
-	}
-	s2 := &v1alpha1.ClusterLogSink{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "sink",
-		},
-		Spec: v1alpha1.SinkSpec{
-			Type: "syslog",
-			SyslogSpec: v1alpha1.SyslogSpec{
-				Host: "example.com",
-				Port: 12345,
+			Spec: v1alpha1.SinkSpec{
+				Type: "syslog",
+				SyslogSpec: v1alpha1.SyslogSpec{
+					Host: "example.com",
+					Port: 12345,
+				},
 			},
-		},
-	}
-	c.OnUpdate(s1, s2)
-	if spyPatcher.patchCalled {
-		t.Errorf("Expected patch to not be called")
-	}
-	if spyDeleter.deleteCollectionCalled {
-		t.Errorf("Expected delete to not be called")
-	}
-}
+		}
+		s2 := &v1alpha1.ClusterLogSink{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "sink",
+			},
+			Spec: v1alpha1.SinkSpec{
+				Type: "syslog",
+				SyslogSpec: v1alpha1.SyslogSpec{
+					Host: "example.com",
+					Port: 12345,
+				},
+			},
+		}
+		c.OnUpdate(s1, s2)
+		if spyPatcher.patchCalled {
+			t.Errorf("Expected patch to not be called")
+		}
+		if spyDeleter.deleteCollectionCalled {
+			t.Errorf("Expected delete to not be called")
+		}
+	})
 
-func TestBadInputs(t *testing.T) {
-	c := sink.NewClusterController(
-		&spyConfigMapPatcher{},
-		&spyDaemonSetPodDeleter{},
-		sink.NewConfig("127.0.0.1:5000"),
-	)
-	//shouldn't panic
-	c.OnAdd("")
-	c.OnDelete(1)
-	c.OnUpdate(nil, nil)
+	t.Run("it should not panic if it receives a non cluster log sink type", func(t *testing.T) {
+		c := sink.NewClusterController(
+			&spyConfigMapPatcher{},
+			&spyDaemonSetPodDeleter{},
+			sink.NewConfig(),
+		)
+		//shouldn't panic
+		c.OnAdd("")
+		c.OnDelete(1)
+		c.OnUpdate(nil, nil)
+	})
 }

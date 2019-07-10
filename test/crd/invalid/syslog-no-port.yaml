@@ -19,3 +19,4 @@ metadata:
 spec:
   type: syslog
   host: example.com
+  enable_tls: true
