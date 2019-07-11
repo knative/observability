@@ -41,7 +41,7 @@ spec:
         - telegraf
         - --config-directory
         - /etc/telegraf
-        image: telegraf:1.9.3-alpine
+        image: telegraf:1.11-alpine
         imagePullPolicy: IfNotPresent
         volumeMounts:
         - name: telegraf-config

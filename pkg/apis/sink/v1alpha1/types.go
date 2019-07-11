@@ -27,23 +27,22 @@ type LogSink struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   SinkSpec   `json:"spec"`
-	Status SinkStatus `json:"status,omitempty"`
+	Spec SinkSpec `json:"spec"`
 }
 
 // SinkSpec is the spec for a Sink resource
 type SinkSpec struct {
 	Type string `json:"type"`
 
-	SyslogSpec  `json:",inline"`
-	WebhookSpec `json:",inline"`
+	SyslogSpec         `json:",inline"`
+	WebhookSpec        `json:",inline"`
+	InsecureSkipVerify bool `json:"insecure_skip_verify"`
 }
 
 type SyslogSpec struct {
-	Host               string `json:"host"`
-	Port               int    `json:"port"`
-	EnableTLS          bool   `json:"enable_tls"`
-	InsecureSkipVerify bool   `json:"insecure_skip_verify"`
+	Host      string `json:"host"`
+	Port      int    `json:"port"`
+	EnableTLS bool   `json:"enable_tls"`
 }
 
 type WebhookSpec struct {
@@ -83,8 +82,7 @@ type ClusterLogSink struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   SinkSpec   `json:"spec"`
-	Status SinkStatus `json:"status,omitempty"`
+	Spec SinkSpec `json:"spec"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

@@ -32,16 +32,13 @@ import (
 
 type config struct {
 	Namespace           string `env:"NAMESPACE,              required, report"`
-	SinkConfigStatsAddr string `env:"SINK_CONFIG_STATS_ADDR,           report"`
 }
 
 func main() {
 	flag.Parse()
 	stopCh := signals.SetupSignalHandler()
 
-	conf := config{
-		SinkConfigStatsAddr: ":5000",
-	}
+	var conf config
 	err := envstruct.Load(&conf)
 	if err != nil {
 		log.Fatal(err.Error())
@@ -81,7 +78,7 @@ func main() {
 		hostOverride,
 	)
 
-	sinkConfig := sink.NewConfig(conf.SinkConfigStatsAddr)
+	sinkConfig := sink.NewConfig()
 	controller := sink.NewController(
 		coreV1Client.ConfigMaps(conf.Namespace),
 		coreV1Client.Pods(conf.Namespace),

@@ -35,7 +35,6 @@ import (
 
 	observabilityv1alpha1 "github.com/knative/observability/pkg/client/clientset/versioned/typed/sink/v1alpha1"
 	"github.com/knative/pkg/test"
-	"github.com/knative/pkg/test/logging"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1beta1"
@@ -90,20 +89,13 @@ func randString(n int) string {
 
 // initialize is responsible for setting up and tearing down the testing environment,
 // namely the test namespace.
-func initialize(t *testing.T) (*clients, *logging.BaseLogger) {
+func initialize(t *testing.T) *clients {
 	flag.Parse()
-	logging.InitializeLogger(test.Flags.LogVerbose)
-	logger := logging.GetContextLogger("TestSetup")
-	flag.Set("alsologtostderr", "true")
-	if test.Flags.EmitMetrics {
-		logging.InitializeMetricExporter()
-	}
-
-	clients := setup(logger)
+	clients := setup(t)
 	test.CleanupOnInterrupt(func() {
-		teardownNamespaces(clients, logger)
-	}, logger)
-	return clients, logging.GetContextLogger(t.Name())
+		teardownNamespaces(t, clients)
+	}, t.Logf)
+	return clients
 }
 
 type spdyDialer struct {
@@ -119,36 +111,36 @@ type clients struct {
 	spdyDialer spdyDialer
 }
 
-func teardownNamespace(clients *clients, logger *logging.BaseLogger, namespace string) {
-	logger.Infof("Deleting namespace %q", namespace)
+func teardownNamespace(t *testing.T, clients *clients, namespace string) {
+	t.Logf("Deleting namespace %q", namespace)
 
 	err := clients.kubeClient.Kube.CoreV1().Namespaces().Delete(
 		namespace,
 		&metav1.DeleteOptions{},
 	)
 	if err != nil && !kuberrors.IsNotFound(err) {
-		logger.Fatalf("Error deleting namespace %q: %v", namespace, err)
+		t.Fatalf("Error deleting namespace %q: %v", namespace, err)
 	}
 }
 
-func teardownNamespaces(clients *clients, logger *logging.BaseLogger) {
-	teardownNamespace(clients, logger, observabilityTestNamespace)
-	err := waitForNamespaceCleanup(observabilityTestNamespace, clients, logger)
+func teardownNamespaces(t *testing.T, clients *clients) {
+	teardownNamespace(t, clients, observabilityTestNamespace)
+	err := waitForNamespaceCleanup(t, observabilityTestNamespace, clients)
 	if err != nil {
-		logger.Fatalf("Failed to clean up existing namespace %q", observabilityTestNamespace)
+		t.Fatalf("Failed to clean up existing namespace %q", observabilityTestNamespace)
 	}
-	teardownNamespace(clients, logger, crosstalkTestNamespace)
-	err = waitForNamespaceCleanup(crosstalkTestNamespace, clients, logger)
+	teardownNamespace(t, clients, crosstalkTestNamespace)
+	err = waitForNamespaceCleanup(t, crosstalkTestNamespace, clients)
 	if err != nil {
-		logger.Fatalf("Failed to clean up existing namespace %q", crosstalkTestNamespace)
+		t.Fatalf("Failed to clean up existing namespace %q", crosstalkTestNamespace)
 	}
 }
 
-func waitForNamespaceCleanup(ns string, clients *clients, logger *logging.BaseLogger) error {
+func waitForNamespaceCleanup(t *testing.T, ns string, clients *clients) error {
 	for i := 0; i < 300; i++ {
 		namespaces, err := clients.kubeClient.Kube.CoreV1().Namespaces().List(metav1.ListOptions{})
 		if err != nil {
-			logger.Infof("Failed to get namespaces: %s", err)
+			t.Logf("Failed to get namespaces: %s", err)
 		}
 
 		var present bool
@@ -172,23 +164,23 @@ func clusterNodes(client *test.KubeClient) (*corev1.NodeList, error) {
 	return client.Kube.CoreV1().Nodes().List(metav1.ListOptions{})
 }
 
-func setup(logger *logging.BaseLogger) *clients {
+func setup(t *testing.T) *clients {
 	clients, err := newClients()
 	if err != nil {
-		logger.Fatalf("Error creating newClients: %v", err)
+		t.Fatalf("Error creating newClients: %v", err)
 	}
 
 	// Cleanup before run
-	teardownNamespaces(clients, logger)
+	teardownNamespaces(t, clients)
 
-	createNamespace(clients, logger, observabilityTestNamespace)
-	createNamespace(clients, logger, crosstalkTestNamespace)
-	createPodSecurityPolicy(clients, logger)
+	createNamespace(t, clients, observabilityTestNamespace)
+	createNamespace(t, clients, crosstalkTestNamespace)
+	createPodSecurityPolicy(t, clients)
 	return clients
 }
 
-func createPodSecurityPolicy(clients *clients, logger *logging.BaseLogger) {
-	logger.Infof("Creating pod security policy")
+func createPodSecurityPolicy(t *testing.T, clients *clients) {
+	t.Logf("Creating pod security policy")
 	_, err := clients.kubeClient.Kube.PolicyV1beta1().PodSecurityPolicies().Create(&policyv1.PodSecurityPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: podSecurityPolicyName,
@@ -216,14 +208,14 @@ func createPodSecurityPolicy(clients *clients, logger *logging.BaseLogger) {
 	if err != nil {
 		if !kuberrors.IsAlreadyExists(err) {
 
-			logger.Fatalf("Error creating pod security policy: %v", err)
+			t.Fatalf("Error creating pod security policy: %v", err)
 		}
 
-		logger.Infof("Pod Security Policy already exists")
+		t.Logf("Pod Security Policy already exists")
 	}
 
-	logger.Infof("Created pod security policy")
-	logger.Infof("Creating Roles and Bindings and Service Accounts")
+	t.Logf("Created pod security policy")
+	t.Logf("Creating Roles and Bindings and Service Accounts")
 	for _, namespace := range []string{observabilityTestNamespace, crosstalkTestNamespace} {
 
 		_, err = clients.kubeClient.Kube.CoreV1().ServiceAccounts(namespace).Create(&corev1.ServiceAccount{
@@ -234,10 +226,10 @@ func createPodSecurityPolicy(clients *clients, logger *logging.BaseLogger) {
 		})
 		if err != nil {
 			if !kuberrors.IsAlreadyExists(err) {
-				logger.Fatalf("Error creating Namespace: %v", err)
+				t.Fatalf("Error creating Namespace: %v", err)
 			}
 
-			logger.Infof("Namespace already exists")
+			t.Logf("Namespace already exists")
 		}
 
 		roleName := "role-" + namespace
@@ -261,10 +253,10 @@ func createPodSecurityPolicy(clients *clients, logger *logging.BaseLogger) {
 
 		if err != nil {
 			if !kuberrors.IsAlreadyExists(err) {
-				logger.Fatalf("Error creating Role: %v", err)
+				t.Fatalf("Error creating Role: %v", err)
 			}
 
-			logger.Infof("Role already exists")
+			t.Logf("Role already exists")
 		}
 		_, err = clients.kubeClient.Kube.RbacV1().RoleBindings(namespace).Create(
 			&rbacv1.RoleBinding{
@@ -294,16 +286,16 @@ func createPodSecurityPolicy(clients *clients, logger *logging.BaseLogger) {
 		if err != nil {
 			if !kuberrors.IsAlreadyExists(err) {
 
-				logger.Fatalf("Error creating Role Binding: %v", err)
+				t.Fatalf("Error creating Role Binding: %v", err)
 			}
 
-			logger.Infof("Role Binding already exists")
+			t.Logf("Role Binding already exists")
 		}
 	}
 }
 
-func createNamespace(clients *clients, logger *logging.BaseLogger, namespace string) {
-	logger.Infof("Creating namespace %q", namespace)
+func createNamespace(t *testing.T, clients *clients, namespace string) {
+	t.Logf("Creating namespace %q", namespace)
 	// Ensure the test namespace exists, by trying to create it and ignoring
 	// already-exists errors.
 	_, err := clients.kubeClient.Kube.CoreV1().Namespaces().Create(
@@ -316,15 +308,15 @@ func createNamespace(clients *clients, logger *logging.BaseLogger, namespace str
 
 	if err != nil {
 		if kuberrors.IsAlreadyExists(err) {
-			logger.Infof("Namespace %q already exists", namespace)
+			t.Logf("Namespace %q already exists", namespace)
 
 			return
 		}
 
-		logger.Fatalf("Error creating namespace %q: %v", namespace, err)
+		t.Fatalf("Error creating namespace %q: %v", namespace, err)
 	}
 
-	logger.Infof("Created namespace %q", namespace)
+	t.Logf("Created namespace %q", namespace)
 }
 
 func newClients() (*clients, error) {
@@ -389,12 +381,11 @@ func assertErr(t *testing.T, msg string, err error) {
 
 func createSyslogReceiver(
 	t *testing.T,
-	logger *logging.BaseLogger,
 	prefix string,
 	kc *test.KubeClient,
 	namespace string,
 ) {
-	logger.Info("Creating the service for the syslog receiver")
+	t.Log("Creating the service for the syslog receiver")
 	_, err := kc.Kube.CoreV1().Services(namespace).Create(&corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      prefix + syslogReceiverSuffix,
@@ -422,7 +413,7 @@ func createSyslogReceiver(
 	})
 	assertErr(t, "Error creating Syslog Receiver Service: %v", err)
 
-	logger.Info("Creating the pod for the syslog receiver")
+	t.Log("Creating the pod for the syslog receiver")
 	_, err = kc.Kube.CoreV1().Pods(namespace).Create(&corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: prefix + syslogReceiverSuffix,
@@ -435,7 +426,7 @@ func createSyslogReceiver(
 			ServiceAccountName: serviceAccountName,
 			Containers: []corev1.Container{{
 				Name:            syslogReceiverSuffix,
-				Image:           "oratos/crosstalk-receiver:v0.5",
+				Image:           "oratos/crosstalk-receiver:v0.6",
 				ImagePullPolicy: corev1.PullAlways,
 				Ports: []corev1.ContainerPort{
 					{
@@ -474,7 +465,7 @@ func createSyslogReceiver(
 	})
 	assertErr(t, "Error creating Syslog Receiver: %v", err)
 
-	logger.Info("Waiting for syslog receiver to be running")
+	t.Log("Waiting for syslog receiver to be running")
 	syslogState := func(ps *corev1.PodList) (bool, error) {
 		for _, p := range ps.Items {
 			if p.Labels["app"] == prefix+syslogReceiverSuffix && p.Status.Phase == corev1.PodRunning {
@@ -494,16 +485,15 @@ func createSyslogReceiver(
 
 func waitForTelegrafToBeReady(
 	t *testing.T,
-	logger *logging.BaseLogger,
 	prefix string,
 	label string,
 	namespace string,
 	kc *test.KubeClient,
 ) {
-	logger.Info("Giving metric-sink-controller time to delete telegraf pods")
+	t.Log("Giving metric-sink-controller time to delete telegraf pods")
 	time.Sleep(5 * time.Second)
 
-	logger.Info("Waiting for all telegraf pods to be ready")
+	t.Log("Waiting for all telegraf pods to be ready")
 	telegrafState := func(ps *corev1.PodList) (bool, error) {
 		for _, p := range ps.Items {
 			if p.Labels["app"] == label && ready(p) {
@@ -521,20 +511,61 @@ func waitForTelegrafToBeReady(
 	assertErr(t, "Error waiting for telegraf to be ready: %v", err)
 }
 
+func createPrometheusScrapeTarget(
+	t *testing.T,
+	metricName string,
+	namespace string,
+	kc *test.KubeClient,
+) {
+	t.Log("Creating prometheus scrape target")
+
+	_, err := kc.Kube.CoreV1().Pods(namespace).Create(&corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "prometheus-scrape-pod",
+			Labels: map[string]string{
+				"app": "prometheus-scrape-pod",
+			},
+			Annotations: map[string]string{
+				"prometheus.io/scrape": "true",
+				"prometheus.io/port":   "2112",
+			},
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{{
+				Name:  "prometheus-scrape-pod",
+				Image: "oratos/prometheus-scrape-target:v0.1",
+				Ports: []corev1.ContainerPort{
+					{
+						Name:          "metrics-port",
+						ContainerPort: 2112,
+					},
+				},
+				Env: []corev1.EnvVar{
+					{
+						Name:  "METRIC_NAME",
+						Value: metricName,
+					},
+				},
+			}},
+		},
+	})
+
+	assertErr(t, "Error creating pod: %v", err)
+}
+
 func waitForFluentBitToBeReady(
 	t *testing.T,
-	logger *logging.BaseLogger,
 	prefix string,
 	kc *test.KubeClient,
 ) {
-	logger.Info("Giving sink-controller time to delete fluentbit pods")
+	t.Log("Giving sink-controller time to delete fluentbit pods")
 	time.Sleep(5 * time.Second)
 
-	logger.Info("Getting cluster nodes")
+	t.Log("Getting cluster nodes")
 	nodes, err := clusterNodes(kc)
 	assertErr(t, "Error getting the cluster nodes: %v", err)
 
-	logger.Info("Waiting for all fluentbit pods to be ready")
+	t.Log("Waiting for all fluentbit pods to be ready")
 	fluentState := func(ps *corev1.PodList) (bool, error) {
 		var readyCount int
 		for _, p := range ps.Items {
@@ -592,28 +623,45 @@ type TelegrafMetric struct {
 }
 
 type ValueField struct {
-	Value int `json:"value"`
+	Value   float64 `json:"value"`
+	Counter float64 `json:"counter"`
+}
+
+func checkMetrics(received, expected map[string]float64) []error {
+	errorList := make([]error, 0)
+	for expectedKey, expectedValue := range expected {
+		receivedValue, ok := received[expectedKey]
+		if !ok {
+			errorList = append(errorList, errors.New(fmt.Sprintf("Cannot find metric %v", expectedKey)))
+			continue
+		}
+		if receivedValue != expectedValue {
+			errorList = append(errorList, errors.New(fmt.Sprintf("%v metric has incorrect value %v, should be %v", expectedKey, receivedValue, expectedValue)))
+		}
+	}
+
+	return errorList
 }
 
 func assertTelegrafOutputtedData(
 	t *testing.T,
-	logger *logging.BaseLogger,
 	label string,
 	namespace string,
 	kc *test.KubeClient,
 	restCfg *rest.Config,
+	assert func(map[string]float64) []error,
 ) {
-	var err error
+	var errs []error
 	waitTime := 20
 	for timeWaited := 0; waitTime >= timeWaited; timeWaited++ {
-		logger.Infof("Checking output of telegraf")
-		err = checkTelegrafOutputtedData(t, label, namespace, kc, restCfg)
-		if err == nil {
+		t.Logf("Checking output of telegraf")
+		errs = checkTelegrafOutputtedData(t, label, namespace, kc, restCfg, assert)
+		if len(errs) == 0 {
 			return
 		}
-		time.Sleep(time.Second)
+		time.Sleep(1 * time.Second)
 	}
-	t.Fatalf("Error looking for telegraf output: %s\n", err)
+	t.Fatalf("Error looking for telegraf output: %v\n", errs)
 }
 
 func checkTelegrafOutputtedData(
@@ -622,7 +670,8 @@ func checkTelegrafOutputtedData(
 	namespace string,
 	kc *test.KubeClient,
 	restCfg *rest.Config,
-) error {
+	assert func(map[string]float64) []error,
+) []error {
 	podName := getPodName(t, kc, namespace, label)
 	req := kc.Kube.
 		CoreV1().
@@ -642,7 +691,7 @@ func checkTelegrafOutputtedData(
 		}, scheme.ParameterCodec)
 	re, err := remotecommand.NewSPDYExecutor(restCfg, "POST", req.URL())
 	if err != nil {
-		return err
+		return []error{err}
 	}
 
 	var outBuf bytes.Buffer
@@ -651,11 +700,11 @@ func checkTelegrafOutputtedData(
 	})
 
 	if err != nil {
-		return err
+		return []error{err}
 	}
 
 	dec := json.NewDecoder(strings.NewReader(outBuf.String()))
-
+	metrics := make(map[string]float64)
 	for {
 		var m TelegrafMetric
 		if err := dec.Decode(&m); err == io.EOF {
@@ -664,31 +713,24 @@ func checkTelegrafOutputtedData(
 			t.Fatalf("Unable to decode Telegraf Metric: %s", err.Error())
 		}
 
-		if m.Name == "test" {
-			if m.Fields.Value != 5 {
-				t.Fatalf("Value for metric bad, expected:%d Got:%d\n", 5, m.Fields.Value)
-			}
-			return nil
-		}
+		metrics[m.Name] = m.Fields.Value + m.Fields.Counter
 	}
-
-	return errors.New("failed to find metric")
+	return assert(metrics)
 }
 
 func assertOnCrosstalk(
 	t *testing.T,
-	logger *logging.BaseLogger,
 	prefix string,
 	clients *clients,
 	namespace string,
 	assert func(ReceiverMetrics) error,
 ) {
 	fports, cancel, err := portForward(
+		t,
 		namespace,
 		prefix+syslogReceiverSuffix,
 		[]string{"6060:6060"},
 		clients,
-		logger,
 	)
 	assertErr(t, "Failed to open port-forward: %s", err)
 	defer cancel()
@@ -747,11 +789,11 @@ func getMetrics(client *http.Client) (ReceiverMetrics, error) {
 }
 
 func portForward(
+	t *testing.T,
 	ns string,
 	appName string,
 	ports []string,
 	clients *clients,
-	logger *logging.BaseLogger,
 ) ([]portforward.ForwardedPort, func(), error) {
 	pods, err := clients.kubeClient.Kube.CoreV1().Pods(ns).List(metav1.ListOptions{
 		LabelSelector: "app=" + appName,
@@ -770,7 +812,7 @@ func portForward(
 	path := fmt.Sprintf("/api/v1/namespaces/%s/pods/%s/portforward", ns, syslogReceiverPodName)
 	hostIP := strings.TrimPrefix(clients.spdyDialer.Host, "https://")
 	serverURL := url.URL{Scheme: "https", Path: path, Host: hostIP}
-	logger.Infof("Server URL: %s", serverURL.String())
+	t.Logf("Server URL: %s", serverURL.String())
 
 	httpClient := &http.Client{
 		Transport: clients.spdyDialer.RoundTripper,
@@ -789,17 +831,17 @@ func portForward(
 		return nil, nil, fmt.Errorf("Unable to create new port forwarder: %s", err)
 	}
 
-	logger.Info("Forwarding ports to syslog-receiver 6060")
+	t.Log("Forwarding ports to syslog-receiver 6060")
 	go func() {
 		err := forwarder.ForwardPorts()
 		if err != nil {
-			logger.Errorf("Port forwarding failed: %s", err)
+			t.Errorf("Port forwarding failed: %s", err)
 		}
 	}()
 
 	select {
 	case <-readyChan:
-		logger.Info("Port forwarding ready")
+		t.Log("Port forwarding ready")
 		if len(errOut.String()) != 0 {
 			close(stopChan)
 			return nil, nil, errors.New(errOut.String())
@@ -820,7 +862,7 @@ func portForward(
 	}
 
 	cancelFn := func() {
-		logger.Info("Closing forwarded ports")
+		t.Log("Closing forwarded ports")
 		close(stopChan)
 	}
 
@@ -829,12 +871,11 @@ func portForward(
 
 func emitLogs(
 	t *testing.T,
-	logger *logging.BaseLogger,
 	prefix string,
 	kc *test.KubeClient,
 	namespace string,
 ) {
-	logger.Info("Emitting logs")
+	t.Log("Emitting logs")
 	_, err := kc.Kube.BatchV1().Jobs(namespace).Create(&batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: prefix + "log-emitter",
@@ -867,7 +908,7 @@ func emitLogs(
 	})
 	assertErr(t, "Error creating log-emitter: %v", err)
 
-	logger.Info("Waiting for log-emitter job to be completed")
+	t.Log("Waiting for log-emitter job to be completed")
 	logEmitterState := func(ps *corev1.PodList) (bool, error) {
 		for _, p := range ps.Items {
 			if p.Labels["app"] == prefix+"log-emitter" && p.Status.Phase == corev1.PodSucceeded {
@@ -887,12 +928,12 @@ func emitLogs(
 
 func emitEvents(
 	t *testing.T,
-	logger *logging.BaseLogger,
 	prefix string,
 	kc *test.KubeClient,
 	namespace string,
+	count int,
 ) {
-	logger.Info("Creating Job that can be referenced for events")
+	t.Log("Creating Job that can be referenced for events")
 	name := prefix + "job"
 	job, err := kc.Kube.BatchV1().Jobs(namespace).Create(&batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
@@ -931,7 +972,8 @@ func emitEvents(
 
 	eventCreator := kc.Kube.CoreV1().Events(namespace)
 	time.Sleep(3 * time.Second)
-	for i := 0; i < 10; i++ {
+	t.Logf("Emitting events...")
+	for i := 0; i < count; i++ {
 		event := &corev1.Event{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      fmt.Sprintf("%s-%d", ref.UID, i),

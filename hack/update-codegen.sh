@@ -51,7 +51,7 @@ pushd $temp_dir/src/k8s.io/code-generator
 popd
 
 mkdir -p $temp_dir/src/github.com/knative/observability
-cp -r $SCRIPT_ROOT/ $temp_dir/src/github.com/knative/observability
+cp -r $SCRIPT_ROOT/. $temp_dir/src/github.com/knative/observability
 
 pushd $temp_dir/src/github.com/knative/observability/
 	export GOPATH=$temp_dir

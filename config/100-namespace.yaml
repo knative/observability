@@ -19,3 +19,4 @@ metadata:
   labels:
     logs: "true"
     metrics: "true"
+    nodeExporter: "true"

@@ -30,6 +30,10 @@ import (
 	typedrbacv1 "k8s.io/client-go/kubernetes/typed/rbac/v1"
 )
 
+// This is a build arg that's injected with the appropriate SHA of
+// the telegraf image
+var TelegrafImageVersion string = "1.11-alpine"
+
 type V1CoreClient interface {
 	typedv1.ConfigMapsGetter
 	typedv1.PodsGetter
@@ -52,6 +56,7 @@ type Controller struct {
 }
 
 func NewController(clusterName string, c V1CoreClient, d V1beta1ExtensionsClient, r RBACV1Client) *Controller {
+	log.Printf("Using telegraf:%s for metric sink deployments", TelegrafImageVersion)
 	return &Controller{
 		clusterName:      clusterName,
 		coreClient:       c,
@@ -222,7 +227,7 @@ func getTelegrafDeployment(ms *v1alpha1.MetricSink) *appsv1.Deployment {
 					}},
 					Containers: []v1.Container{{
 						Name:    "telegraf",
-						Image:   "telegraf:1.9.3-alpine",
+						Image:   "telegraf:" + TelegrafImageVersion,
 						Command: []string{"telegraf", "--config-directory", "/etc/telegraf"},
 						VolumeMounts: []v1.VolumeMount{{
 							Name:      "telegraf-config",
@@ -277,12 +282,19 @@ func getTelegrafRole(ms *v1alpha1.MetricSink) *rbacv1.Role {
 				UID:        ms.UID,
 			}},
 		},
-		Rules: []rbacv1.PolicyRule{{
-			Verbs:         []string{"use"},
-			APIGroups:     []string{"extensions"},
-			Resources:     []string{"podsecuritypolicies"},
-			ResourceNames: []string{"telegraf"},
-		}},
+		Rules: []rbacv1.PolicyRule{
+			{
+				Verbs:         []string{"use"},
+				APIGroups:     []string{"extensions"},
+				Resources:     []string{"podsecuritypolicies"},
+				ResourceNames: []string{"telegraf"},
+			},
+			{
+				Verbs:     []string{"get", "list", "watch"},
+				APIGroups: []string{""},
+				Resources: []string{"pods"},
+			},
+		},
 	}
 }
 
@@ -295,6 +307,8 @@ func (c *Controller) metricSinkConfig(ms *v1alpha1.MetricSink) string {
 	if c.clusterName != "" {
 		config.GlobalTags = map[string]string{"cluster_name": c.clusterName}
 	}
+
+	config.Inputs["prometheus"] = []map[string]interface{}{{"monitor_kubernetes_pods": true, "monitor_kubernetes_pods_namespace": ms.Namespace}}
 
 	appendInputsAndOutputs(&config, ms.Spec.Inputs, ms.Spec.Outputs)
 

@@ -46,22 +46,18 @@ _See [e2e_flags.go](./e2e_flags.go)._
 [When tests are run with `--logverbose` option](README.md#output-verbose-logs),
 debug logs will be emitted to stdout.
 
-We are using the common [e2e logging library](logging/logging.go) that uses the
-[Knative logging library](../logging/) for structured logging. It is built on
-top of [zap](https://github.com/uber-go/zap). Tests should initialize the global
-logger to use a test specifc context with `logging.GetContextLogger`:
+We are using a generic
+[FormatLogger](https://github.com/knative/pkg/blob/master/test/logging/logging.go#L49)
+that can be passed in any existing logger that satisfies it. Test can use the
+generic [logging methods](https://golang.org/pkg/testing/#T) to log info and
+error logs. All the common methods accept generic FormatLogger as a parameter
+and tests can pass in `t.Logf` like this:
 
 ```go
-// The convention is for the name of the logger to match the name of the test.
-logging.GetContextLogger("TestHelloWorld")
-```
-
-Logs can then be emitted using the `logger` object which is required by many
-functions in the test library. To emit logs:
-
-```go
-logger.Infof("Creating a new Route %s and Configuration %s", route, configuration)
-logger.Debugf("The LogURL is %s, not yet verifying", logURL)
+_, err = pkgTest.WaitForEndpointState(
+    clients.KubeClient,
+    t.Logf,
+    ...),
 ```
 
 _See [logging.go](./logging/logging.go)._
@@ -77,11 +73,12 @@ These metrics will be emitted by the test if the test is run with
 
 You can record arbitrary metrics with
 [`stats.Record`](https://github.com/census-instrumentation/opencensus-go#stats)
-or measure latency with
-[`trace.StartSpan`](https://github.com/census-instrumentation/opencensus-go#traces):
+or measure latency by creating a instance of
+[`trace.Span`](https://github.com/census-instrumentation/opencensus-go#traces)
+by using the helper method [`logging.GetEmitableSpan()`](../logging/logger.go)
 
 ```go
-ctx, span := trace.StartSpan(context.Background(), "MyMetric")
+span := logging.GetEmitableSpan(context.Background(), "MyMetric")
 ```
 
 - These traces will be emitted automatically by
@@ -96,7 +93,7 @@ When a `trace` metric is emitted, the format is
 arbitrary and can be any string. The values are:
 
 - `metric` - Indicates this log is a metric
-- `<name>` - Arbitrary string indentifying the metric
+- `<name>` - Arbitrary string identifying the metric
 - `<startTime>` - Unix time in nanoseconds when measurement started
 - `<endTime>` - Unix time in nanoseconds when measurement ended
 - `<duration>` - The difference in ms between the startTime and endTime
@@ -140,13 +137,14 @@ For example, you can poll a `Configuration` object to find the name of the
 
 ```go
 var revisionName string
-err := test.WaitForConfigurationState(clients.ServingClient, configName, func(c *v1alpha1.Configuration) (bool, error) {
-    if c.Status.LatestCreatedRevisionName != "" {
-        revisionName = c.Status.LatestCreatedRevisionName
-        return true, nil
-    }
-    return false, nil
-}, "ConfigurationUpdatedWithRevision")
+err := test.WaitForConfigurationState(
+    clients.ServingClient, configName, func(c *v1alpha1.Configuration) (bool, error) {
+        if c.Status.LatestCreatedRevisionName != "" {
+            revisionName = c.Status.LatestCreatedRevisionName
+            return true, nil
+        }
+        return false, nil
+    }, "ConfigurationUpdatedWithRevision")
 ```
 
 _[Metrics will be emitted](#emit-metrics) for these `Wait` method tracking how
@@ -198,10 +196,7 @@ go test ./test --kubeconfig /my/path/kubeconfig
 ### Specifying cluster
 
 The `--cluster` argument lets you use a different cluster than
-[your specified kubeconfig's](#specifying-kubeconfig) active context. This will
-default to the value of your
-[`K8S_CLUSTER_OVERRIDE` environment variable](https://github.com/knative/serving/blob/master/DEVELOPMENT.md#environment-setup)
-if not specified.
+[your specified kubeconfig's](#specifying-kubeconfig) active context.
 
 ```bash
 go test ./test --cluster your-cluster-name
@@ -211,6 +206,16 @@ The current cluster names can be obtained by running:
 
 ```bash
 kubectl config get-clusters
+```
+
+### Specifying ingress endpoint
+
+The `--ingressendpoint` argument lets you specify a static url to use as the
+ingress server during tests. This is useful for Kubernetes configurations which
+do not provide external IPs.
+
+```bash
+go test ./test --ingressendpoint <k8s-controller-ip>:32380
 ```
 
 ### Specifying namespace
@@ -240,9 +245,9 @@ go test ./test --emitmetrics
 ```
 
 - To add additional metrics to a test, see
-  [emitting metrics](adding_tests.md#emit-metrics).
+  [emitting metrics](https://github.com/knative/pkg/tree/master/test#emit-metrics).
 - For more info on the format of the metrics, see
-  [metric format](adding_tests.md#metric-format).
+  [metric format](https://github.com/knative/pkg/tree/master/test#emit-metrics).
 
 [minikube]: https://kubernetes.io/docs/setup/minikube/
 

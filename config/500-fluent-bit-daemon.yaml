@@ -38,7 +38,7 @@ spec:
       serviceAccountName: fluent-bit
       containers:
       - name: fluent-bit
-        image: oratos/fluent-bit-out-syslog:v0.16
+        image: oratos/fluent-bit-out-syslog:v0.19
         imagePullPolicy: IfNotPresent
         ports:
         - name: forward-plugin
@@ -68,12 +68,6 @@ spec:
         - name: varvcapdata
           mountPath: /var/vcap/data
           readOnly: true
-      - name: state-updater
-        image: github.com/knative/observability/cmd/sink-state-updater
-        imagePullPolicy: IfNotPresent
-        env:
-        - name: SINK_STATE_URL
-          value: "http://localhost:5000"
       terminationGracePeriodSeconds: 10
       volumes:
       - name: varlog

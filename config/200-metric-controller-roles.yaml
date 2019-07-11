@@ -28,7 +28,7 @@ rules:
 # The metric-controller needs to be able to delete the telegraf pods
 - apiGroups: [""] # "" indicates the core API group
   resources: ["pods"]
-  verbs: ["deletecollection"]
+  verbs: ["deletecollection", "get", "list", "watch"]
 # The metric-controller looks for a label on the node for the hostname
 - apiGroups: [""]
   resources: ["nodes"]

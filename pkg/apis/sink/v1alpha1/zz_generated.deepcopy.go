@@ -30,7 +30,6 @@ func (in *ClusterLogSink) DeepCopyInto(out *ClusterLogSink) {
 	out.TypeMeta = in.TypeMeta
 	in.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
 	out.Spec = in.Spec
-	in.Status.DeepCopyInto(&out.Status)
 	return
 }
 
@@ -152,7 +151,6 @@ func (in *LogSink) DeepCopyInto(out *LogSink) {
 	out.TypeMeta = in.TypeMeta
 	in.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
 	out.Spec = in.Spec
-	in.Status.DeepCopyInto(&out.Status)
 	return
 }
 

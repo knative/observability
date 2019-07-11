@@ -21,6 +21,7 @@ import (
 	"log"
 	"net/url"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/knative/observability/pkg/apis/sink/v1alpha1"
@@ -30,7 +31,6 @@ const nullConfig = `
 [OUTPUT]
     Name null
     Match *
-    StatsAddr %s
 `
 
 const httpOutputConfig = `
@@ -41,19 +41,17 @@ const httpOutputConfig = `
     Host %s
     Port %s
     URI %s
-    %s
+%s
 `
 
 type Config struct {
 	mu           sync.Mutex
-	statsAddr    string
 	sinks        map[string]*v1alpha1.LogSink
 	clusterSinks map[string]*v1alpha1.ClusterLogSink
 }
 
-func NewConfig(statsAddr string) *Config {
+func NewConfig() *Config {
 	return &Config{
-		statsAddr:    statsAddr,
 		sinks:        make(map[string]*v1alpha1.LogSink),
 		clusterSinks: make(map[string]*v1alpha1.ClusterLogSink),
 	}
@@ -87,7 +85,7 @@ func (sc *Config) String() string {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
 	if len(sc.sinks)+len(sc.clusterSinks) == 0 {
-		return fmt.Sprintf(nullConfig, sc.statsAddr)
+		return nullConfig
 	}
 	return sc.syslogConfig() + sc.webhookConfig()
 }
@@ -99,7 +97,7 @@ func (sc *Config) webhookConfig() string {
 			continue
 		}
 
-		config += buildHTTPConfig(s.Namespace, s.Spec.URL, false)
+		config += buildHTTPConfig(s.Namespace, s.Spec, false)
 	}
 
 	for _, s := range sc.clusterSinks {
@@ -107,14 +105,14 @@ func (sc *Config) webhookConfig() string {
 			continue
 		}
 
-		config += buildHTTPConfig("", s.Spec.URL, true)
+		config += buildHTTPConfig("", s.Spec, true)
 	}
 
 	return config
 }
 
 func (sc *Config) syslogConfig() string {
-	sinks := make([]sink, 0, len(sc.sinks))
+	sinks := make(sinkList, 0, len(sc.sinks))
 	for _, s := range sc.sinks {
 		if s.Spec.Type != "syslog" {
 			continue
@@ -139,14 +137,8 @@ func (sc *Config) syslogConfig() string {
 		}
 		return sinks[i].Name < sinks[j].Name
 	})
-	// TODO: don't return null config yet. just set to empty json
-	sinksJSON, err := json.Marshal(sinks)
-	if err != nil {
-		log.Print("unable to marshal sinks")
-		sinksJSON = []byte("[]")
-	}
 
-	clusterSinks := make([]sink, 0, len(sc.clusterSinks))
+	clusterSinks := make(sinkList, 0, len(sc.clusterSinks))
 	for _, s := range sc.clusterSinks {
 		if s.Spec.Type != "syslog" {
 			continue
@@ -167,24 +159,12 @@ func (sc *Config) syslogConfig() string {
 	sort.Slice(clusterSinks, func(i, j int) bool {
 		return clusterSinks[i].Name < clusterSinks[j].Name
 	})
-	clusterSinksJSON, err := json.Marshal(clusterSinks)
-	if err != nil {
-		log.Print("unable to marshal cluster sinks")
-		clusterSinksJSON = []byte("[]")
-	}
 
 	if len(sinks)+len(clusterSinks) == 0 {
 		return ""
 	}
 
-	return fmt.Sprintf(`
-[OUTPUT]
-    Name syslog
-    Match *
-    StatsAddr %s
-    Sinks %s
-    ClusterSinks %s
-`, sc.statsAddr, sinksJSON, clusterSinksJSON)
+	return sinks.String() + clusterSinks.String()
 }
 
 type sink struct {
@@ -194,12 +174,57 @@ type sink struct {
 	Name      string `json:"name,omitempty"`
 }
 
+type sinkList []sink
+
+func (ss sinkList) String() string {
+	var result []string
+
+	for _, s := range ss {
+		result = append(result, s.String())
+	}
+
+	return strings.Join(result, "")
+}
+
+func (s *sink) String() string {
+	var clusterOrNamespace string
+	if s.Namespace != "" {
+		clusterOrNamespace = fmt.Sprintf("Namespace %s", s.Namespace)
+	} else {
+		clusterOrNamespace = "Cluster true"
+	}
+
+	return fmt.Sprintf(`
+[OUTPUT]
+    Name syslog
+    Match *
+    InstanceName %s
+    Addr %s
+    %s%s
+`, s.Name, s.Addr, clusterOrNamespace, s.TLS.String())
+
+}
+
 type tls struct {
 	InsecureSkipVerify bool `json:"insecure_skip_verify,omitempty"`
 }
 
-func buildHTTPConfig(namespace, URL string, isCluster bool) string {
-	url, err := url.Parse(URL)
+func (t *tls) String() string {
+	if t == nil {
+		return ""
+	}
+
+	b, err := json.Marshal(t)
+	if err != nil {
+		log.Print("unable to marshal sink TLS config")
+		return ""
+	}
+
+	return fmt.Sprintf("\n    TLSConfig %s", b)
+}
+
+func buildHTTPConfig(namespace string, spec v1alpha1.SinkSpec, isCluster bool) string {
+	url, err := url.Parse(spec.URL)
 	if err != nil {
 		return ""
 	}
@@ -219,7 +244,11 @@ func buildHTTPConfig(namespace, URL string, isCluster bool) string {
 
 	var extras string
 	if url.Scheme == "https" {
-		extras = "tls On"
+		extras = "    tls On\n"
+
+		if spec.InsecureSkipVerify {
+			extras += "    tls.verify Off\n"
+		}
 	}
 
 	match := fmt.Sprintf("*_%s_*", namespace)

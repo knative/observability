@@ -20,3 +20,4 @@ spec:
   type: syslog
   host: 12345
   port: 12345
+  enable_tls: true
