@@ -13,3 +13,7 @@
 
 # IDE
 .idea/
+
+# e2e cruft
+kubernetes.tar.gz
+kubernetes/
