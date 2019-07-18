@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright 2018 The Knative Authors
+# Copyright 2019 The Knative Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,21 +17,16 @@
 source $(dirname $0)/../vendor/github.com/knative/test-infra/scripts/release.sh
 
 # Local generated yaml file
-readonly OUTPUT_YAML=build.yaml
+readonly OUTPUT_YAML=observability.yaml
 
 function build_release() {
   local image_base_path="${KO_DOCKER_REPO}/github.com/knative/observability/cmd"
-  local image_tag=""
-
-  if [[ -n "${TAG:-}" ]]; then
-      image_tag="$TAG"
-  else
-      image_tag="$(git rev-parse HEAD)"
-  fi
+  local image_tag="${TAG:-$BUILD_TAG}"
 
   local manifest_substitutions=""
 
-  for image_name in cert-generator validator; do
+  for dockerfile in cmd/*/Dockerfile; do
+    image_name=$(echo $dockerfile | cut -d / -f 2)
     echo "Building $image_name"
 
     local image_path="${image_base_path}/$image_name:$image_tag"
@@ -44,7 +39,8 @@ function build_release() {
       manifest_image_reference="$(docker image inspect $image_path | jq -r '.[0].RepoDigests[0]')"
     fi
 
-    manifest_substitutions="${manifest_substitutions};s|oratos/${image_name}:v.*|${manifest_image_reference}|"
+    # to replace images that are not built by ko in manifest
+    manifest_substitutions="${manifest_substitutions};/image: /s|oratos/${image_name}:v.*|${manifest_image_reference}|"
 
     if (( PUBLISH_RELEASE )); then
       docker push $image_path
@@ -55,7 +51,7 @@ function build_release() {
   ko resolve ${KO_FLAGS} -f config/ \
       | sed -e "${manifest_substitutions}" \
       > ${OUTPUT_YAML}
-  YAMLS_TO_PUBLISH="${OUTPUT_YAML}"
+  ARTIFACTS_TO_PUBLISH="${OUTPUT_YAML}"
 }
 
 main $@
