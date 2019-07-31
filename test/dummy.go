@@ -18,7 +18,7 @@ package test
 
 import (
 	"fmt"
-        _ "github.com/knative/test-infra/scripts"
+        _ "knative.dev/test-infra/scripts"
 )
 
 func explain() {

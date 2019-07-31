@@ -25,7 +25,7 @@
 # Calling this script without arguments will create a new cluster in project
 # $PROJECT_ID, start the controller, run the tests and delete the cluster.
 
-source "$(dirname "$0")/../vendor/github.com/knative/test-infra/scripts/e2e-tests.sh"
+source "$(dirname "$0")/../vendor/knative.dev/test-infra/scripts/e2e-tests.sh"
 
 function test_teardown() {
   ko delete --ignore-not-found=true -R -f test/ || true

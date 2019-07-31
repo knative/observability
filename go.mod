@@ -18,7 +18,7 @@ require (
 	github.com/imdario/mergo v0.3.6 // indirect
 	github.com/json-iterator/go v1.1.5 // indirect
 	github.com/knative/pkg v0.0.0-20190612215543-68737b1b4e03
-	github.com/knative/test-infra v0.0.0-20190518032526-1576da300696
+	github.com/knative/test-infra v0.0.0-20190518032526-1576da300696 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.1 // indirect
 	github.com/onsi/ginkgo v1.7.0 // indirect
@@ -39,5 +39,6 @@ require (
 	k8s.io/code-generator v0.0.0-20190404150254-edcfb81a444e // indirect
 	k8s.io/klog v0.3.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20181114233023-0317810137be // indirect
+	knative.dev/test-infra v0.0.0-20190730202142-17f2331e80ad
 	sigs.k8s.io/yaml v1.1.0 // indirect
 )

@@ -51,16 +51,14 @@ github.com/json-iterator/go
 # github.com/knative/pkg v0.0.0-20190612215543-68737b1b4e03
 github.com/knative/pkg/signals
 github.com/knative/pkg/test
-github.com/knative/pkg/test/logging
 github.com/knative/pkg/test/monitoring
+github.com/knative/pkg/test/logging
 github.com/knative/pkg/test/spoof
 github.com/knative/pkg/logging
 github.com/knative/pkg/test/ingress
 github.com/knative/pkg/test/zipkin
 github.com/knative/pkg/changeset
 github.com/knative/pkg/logging/logkey
-# github.com/knative/test-infra v0.0.0-20190518032526-1576da300696
-github.com/knative/test-infra/scripts
 # github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd
 github.com/modern-go/concurrent
 # github.com/modern-go/reflect2 v1.0.1
@@ -370,5 +368,7 @@ k8s.io/client-go/tools/clientcmd/api/v1
 k8s.io/klog
 # k8s.io/kube-openapi v0.0.0-20181114233023-0317810137be
 k8s.io/kube-openapi/pkg/util/proto
+# knative.dev/test-infra v0.0.0-20190730202142-17f2331e80ad
+knative.dev/test-infra/scripts
 # sigs.k8s.io/yaml v1.1.0
 sigs.k8s.io/yaml
