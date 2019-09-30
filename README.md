@@ -61,7 +61,7 @@ output needs to be provided.
 The following example routes kubernetes cluster metrics to datadog.
 
 ```yaml
-apiVersion:observability.knative.dev/v1alpha1
+apiVersion: observability.knative.dev/v1alpha1
 kind: ClusterMetricSink
 metadata:
   name: cluster-metric-sink
