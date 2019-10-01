@@ -23,7 +23,7 @@ data:
 kind: ConfigMap
 metadata:
   labels:
-    serving.knative.dev/release: v0.8.0
+    eventing.knative.dev/release: devel
   name: config-observability
   namespace: knative-eventing
 EOF
@@ -36,7 +36,7 @@ data:
 kind: ConfigMap
 metadata:
   labels:
-    serving.knative.dev/release: v0.8.0
+    serving.knative.dev/release: devel
   name: config-observability
   namespace: knative-serving
 EOF
@@ -53,7 +53,7 @@ kind: Namespace
 metadata:
   name: knative-monitoring
   labels:
-    serving.knative.dev/release: devel
+    monitoring.knative.dev/release: devel
 EOF
 ```
 
