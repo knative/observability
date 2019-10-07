@@ -8,11 +8,42 @@ Create a kubernetes cluster as mentioned [here](https://knative.dev/docs/install
 
 > Note: A GKE cluster is used, but any other cluster type can be used as well.
 
+Export the cluster properties:
+
+```bash
+export CLUSTER_NAME="YOUR_CLUSTER_NAME" \
+export CLUSTER_PROJECT="YOUR_CLUSTER_PROJECT" \
+export CLUSTER_ZONE="YOUR_CLUSTER_ZONE"
+```
+
+Create a GKE cluster:
+
+```bash
+gcloud beta container --project "${CLUSTER_PROJECT}" clusters create ${CLUSTER_NAME} \
+  --addons=HorizontalPodAutoscaling,HttpLoadBalancing,Istio \
+  --machine-type=n1-standard-4 \
+  --cluster-version=latest --zone=${CLUSTER_ZONE} \
+  --enable-stackdriver-kubernetes --enable-ip-alias \
+  --enable-autoscaling --min-nodes=1 --max-nodes=10 \
+  --enable-autorepair \
+  --scopes cloud-platform
+```
+
+Grant the cluster-admin permissions:
+
+```bash
+kubectl create clusterrolebinding cluster-admin-binding \
+  --clusterrole=cluster-admin \
+  --user=$(gcloud config get-value core/account)
+```
+
 ## Knative setup
 
-### Install Knative [Serving](https://github.com/knative/serving/blob/master/DEVELOPMENT.md#deploy-knative-serving) and [Eventing](https://github.com/knative/eventing/blob/master/DEVELOPMENT.md#starting-eventing-controller).
+### Install Knative [Serving](https://github.com/knative/serving/blob/master/DEVELOPMENT.md#deploy-knative-serving) and [Eventing](https://github.com/knative/eventing/blob/master/DEVELOPMENT.md#starting-eventing-controller)
 
-### Configure monitoring for Knative Serving and Eventing:
+> Note: Skip the installation of the monitoring components of Knative serving.
+
+### Configure monitoring for Knative Serving and Eventing
 
 ```bash
 # configure monitoring for Eventing
@@ -44,7 +75,7 @@ EOF
 
 ## Prometheus operator setup
 
-### Create the `knative-monitoring` namespace:
+### Create the `knative-monitoring` namespace
 
 ```bash
 cat << EOF | kubectl apply -f -
@@ -57,7 +88,7 @@ metadata:
 EOF
 ```
 
-### Install the Prometheus operator:
+### Install the Prometheus operator
 
 ```bash
 cat << EOF | kubectl apply -f -
@@ -225,13 +256,13 @@ spec:
 EOF
 ```
 
-### Wait until the Prometheus operator is up and running:
+### Wait until the Prometheus operator is up and running
 
 ```bash
-kubectl get pods -n knative-monitoring --selector='app.kubernetes.io/component=controller,app.kubernetes.io/name=prometheus-operator' -w
+kubectl get pods --namespace knative-monitoring --selector='app.kubernetes.io/component=controller,app.kubernetes.io/name=prometheus-operator' --watch
 ```
 
-### Create an instance from the Prometheus CR:
+### Create an instance from the Prometheus CR
 
 ```bash
 cat << EOF | kubectl apply -f -
@@ -277,10 +308,10 @@ spec:
 EOF
 ```
 
-### Wait until Prometheus is up and running:
+### Wait until Prometheus is up and running
 
 ```bash
-kubectl get pod -n knative-monitoring prometheus-monitoring-0 -w
+kubectl get pod --namespace knative-monitoring prometheus-monitoring-0 --watch
 ```
 
 ## Verification
@@ -291,7 +322,7 @@ Install NATS Streaming server:
 
 ```bash
 kubectl create namespace natss; \
-kubectl apply -n natss -f https://raw.githubusercontent.com/knative/eventing/v0.7.0/contrib/natss/config/broker/natss.yaml
+kubectl apply --namespace natss -f https://raw.githubusercontent.com/knative/eventing/v0.7.0/contrib/natss/config/broker/natss.yaml
 ```
 
 Install NatssChannel:
@@ -306,7 +337,7 @@ Add the monitoring port to the **natss-ch-dispatcher** service:
 
 ```bash
 # edit the natss-ch-dispatcher service
-kubectl edit svc -n knative-eventing natss-ch-dispatcher
+kubectl edit service --namespace knative-eventing natss-ch-dispatcher
 
 # add the following config
 spec:
@@ -321,7 +352,7 @@ spec:
     targetPort: 9090
 ```
 
-### Create a service monitor for the NatssChannel dispatcher:
+### Create a service monitor for the NatssChannel dispatcher
 
 ```bash
 cat << EOF | kubectl apply -f -
@@ -373,15 +404,15 @@ EOF
 Do a port-forward to access Prometheus targets endpoint:
 
 ```bash
-kubectl port-forward -n knative-monitoring \
-   $(kubectl get pods -n knative-monitoring \
+kubectl port-forward --namespace knative-monitoring \
+   $(kubectl get pods --namespace knative-monitoring \
    --selector=app=prometheus --output=jsonpath="{.items[0].metadata.name}") \
    9090
 ```
 
 Access [http://localhost:9090/targets](http://localhost:9090/targets), in a few seconds, the **knative-monitoring/natss-ch-dispatcher-metrics** job should be up.
 
-## Cleanup:
+## Cleanup
 
 ```bash
 gcloud container clusters delete ${CLUSTER_NAME} --zone ${CLUSTER_ZONE}
